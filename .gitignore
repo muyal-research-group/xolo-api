@@ -1,0 +1,7 @@
+test.py
+data/
+oca_catalogs/
+src/__pycache__/
+**/*.csv
+**/*.json
+scripts/out
