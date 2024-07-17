@@ -91,6 +91,9 @@ MONGO_DATABASE_NAME      = os.environ.get("MONGO_DATABASE_NAME","mictlanx")
 db                       = client[MONGO_DATABASE_NAME]
 users_dao              = UsersDAO(collection=db["users"])
 
+
+
+
 @app.post("/api/v4/users/grants",status_code=status.HTTP_204_NO_CONTENT)
 def grants(
     payload:GrantsDTO,
