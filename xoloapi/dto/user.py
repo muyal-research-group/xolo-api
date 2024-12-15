@@ -10,9 +10,12 @@ class UserDTO(BaseModel):
     password:str
     profile_photo:str=""
     role:str="user"
+
+
 class AuthDTO(BaseModel):
     username:str
     password:str
+    
 class VerifyDTO(BaseModel):
     access_token:str
     username:str

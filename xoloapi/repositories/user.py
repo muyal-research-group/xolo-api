@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from uuid import uuid4
 # from option import Option, NONE, Some
 # from typing import Dict,Union,List
-from interfaces.dto.user import UserDTO
+from xoloapi.dto.user import UserDTO
 # from src.interfaces.dao.user import User
 import json as J
 from option import Option,Some,NONE
@@ -27,7 +27,7 @@ class User(BaseModel):
     hash_password:str
     role:str
 
-class UsersDAO(object):
+class UsersRepository(object):
     def __init__(self,collection:Collection):
         self.collection = collection
     def create(self,user:UserDTO)->str:
@@ -53,29 +53,3 @@ class UsersDAO(object):
         else:
             print(type(x))
             return Some(User(**x))
-
-#     def find_all(self,skip:int=0, limit:int = 10)->List[CatalogDTO]:
-#         cursor      = self.collection.find({}).skip(skip=skip).limit(limit=limit)
-#         documents = []
-#         for document in cursor:
-#             del document["_id"]
-#             documents.append(CatalogDTO(
-#                 key=document["key"],
-#                 name= document["name"],
-#                 display_name= document["display_name"],
-#                 items= list( map(lambda x: CatalogItemDTO(**x), document["items"]) )
-#             ))
-
-#         cursor.close()
-#         return documents
-
-#     def find_by_key(self,key:str)->Option[CatalogDTO]:
-#         res = self.collection.find_one({"key":key})
-#         if res:
-#             del res["_id"]
-#             return Some(CatalogDTO(**res))
-#         else:
-#             return NONE
-
-#     def delete(self,key:str)->DeleteResult:
-#         return self.collection.delete_one({"key": key})

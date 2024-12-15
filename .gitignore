@@ -5,3 +5,5 @@ src/__pycache__/
 **/*.csv
 **/*.json
 scripts/out
+**/__pycache__/
+

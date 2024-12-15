@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "xoloapi"
+version = "0.1.0"
+description = ""
+authors = ["Ignacio Castillo <ignacio.bcastillo@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.10"
+fastapi = "^0.115.0"
+pydantic = "^2.9.2"
+motor = "^3.6.0"
+pyyaml = "^6.0.2"
+uvicorn = "^0.31.0"
+durations = "^0.3.3"
+nanoid = "^2.0.0"
+option = "^2.1.0"
+
+
+requests = "^2.32.3"
+pyjwt = "^2.9.0"
+retry = "^0.9.2"
+humanfriendly = "^10.0"
+xolo = "0.0.7a0"
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+[[tool.poetry.source]]
+name = "test"
+url = "https://test.pypi.org/simple/"
+priority = "supplemental"

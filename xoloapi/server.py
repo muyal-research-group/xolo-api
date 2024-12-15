@@ -5,9 +5,9 @@ from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from fastapi.openapi.utils import get_openapi
 from pymongo import MongoClient
-from interfaces.dao.user import UsersDAO
-from interfaces.dto.user import UserDTO,AuthDTO,AuthenticatedDTO,VerifyDTO
-from interfaces.dto.acl import GrantsDTO,CheckDTO
+from xoloapi.repositories.user import UsersRepository
+from xoloapi.dto.user import UserDTO,AuthDTO,AuthenticatedDTO,VerifyDTO
+from xoloapi.dto.acl import GrantsDTO,CheckDTO
 from uuid import uuid4
 import jwt
 from datetime import datetime, timedelta
@@ -15,7 +15,7 @@ import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from xolo.utils.utils import Utils as XoloUtils
 from xolo.acl.acl import Acl
-from xolo.log.log import Log
+from xolo.log import Log
 from option import Some,NONE
 from typing import Union
 from typing_extensions import Annotated
@@ -40,15 +40,7 @@ acl = Acl.load_or_create(
     filename=XOLO_ACL_FILENAME,
     heartbeat=XOLO_ACL_DAEMON_HEARTBEAT,
 )
-# if maybe_acl.is_none:
-#     acl = Acl(
-#         key= XOLO_ACL_KEY,
-#         output_path=XOLO_ACL_OUTPUT_PATH,
-#         filename= XOLO_ACL_FILENAME,
-#         heartbeat=XOLO_ACL_DAEMON_HEARTBEAT
-#     )
-# else:
-#     acl = maybe_acl.unwrap()
+
 
 
 
@@ -89,7 +81,7 @@ port                     = os.environ.get("MONGO_PORT",27017)
 client                   = MongoClient(os.environ.get("MONGO_URI","mongodb://{}:{}/".format(ip_addr, port)))
 MONGO_DATABASE_NAME      = os.environ.get("MONGO_DATABASE_NAME","mictlanx")
 db                       = client[MONGO_DATABASE_NAME]
-users_dao              = UsersDAO(collection=db["users"])
+users_dao              = UsersRepository(collection=db["users"])
 
 
 
