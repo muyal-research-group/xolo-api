@@ -5,15 +5,18 @@ from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from fastapi.openapi.utils import get_openapi
 from pymongo import MongoClient
-from xoloapi.repositories.user import UsersRepository
-from xoloapi.dto.user import UserDTO,AuthDTO,AuthenticatedDTO,VerifyDTO
+# from xoloapi.repositories.user import UsersRepository
+# from xoloapi.repositories.scopes import ScopesRepository
+import xoloapi.repositories as R
+import xoloapi.dto as DTO
+import xoloapi.services as S
+# from xoloapi.services.user import UsersService
+# from xoloapi.services.scopes import ScopesService
 from xoloapi.dto.acl import GrantsDTO,CheckDTO
-from uuid import uuid4
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
-from xolo.utils.utils import Utils as XoloUtils
 from xolo.acl.acl import Acl
 from xolo.log import Log
 from option import Some,NONE
@@ -76,15 +79,48 @@ def generate_openapi():
 app.openapi = generate_openapi
 # .openapi()
 
-ip_addr                  = os.environ.get("MONGO_IP_ADDR","localhost")
-port                     = os.environ.get("MONGO_PORT",27017)
-client                   = MongoClient(os.environ.get("MONGO_URI","mongodb://{}:{}/".format(ip_addr, port)))
-MONGO_DATABASE_NAME      = os.environ.get("MONGO_DATABASE_NAME","mictlanx")
-db                       = client[MONGO_DATABASE_NAME]
-users_dao              = UsersRepository(collection=db["users"])
+ip_addr             = os.environ.get("MONGO_IP_ADDR","localhost")
+port                = os.environ.get("MONGO_PORT",27018)
+client              = MongoClient(os.environ.get("MONGO_URI","mongodb://{}:{}/".format(ip_addr, port)))
+MONGO_DATABASE_NAME = os.environ.get("MONGO_DATABASE_NAME","mictlanx")
+db                  = client[MONGO_DATABASE_NAME]
+users_repository    = R.UsersRepository(collection=db["users"])
+
+scope_collection      = db["scopes"]
+scope_user_collection = db["scopes_users"]
+
+scopes_repository = R.ScopesRepository(collection=scope_collection, scope_user_collection=scope_user_collection)
 
 
+scopes_service    = S.ScopesService(repository=scopes_repository)
+licenses_service = S.LicensesService(
+    repository = R.LicensesRepository(collection=db["licenses"]),
+    secret_key = XOLO_ACL_KEY
+)
+users_service       = S.UsersService(
+    repository = users_repository,
+    scopes_repository=scopes_repository,
+    licenses_service=licenses_service
+)
 
+
+@app.post("/api/v4/scopes")
+def create_scope(dto:DTO.CreateScopeDTO):
+    response = scopes_service.create(dto = dto)
+    if response.is_ok:
+        return response.unwrap()
+    e = response.unwrap_err()
+    raise HTTPException(detail=e.detail, status_code=e.status_code)
+
+@app.post("/api/v4/scopes/assign")
+def assign_scope(dto:DTO.AssignScopeDTO):
+    response = scopes_service.assign(dto = dto)
+    if response.is_ok:
+        return response.unwrap()
+    e = response.unwrap_err()
+    raise HTTPException(detail=e.detail, status_code=e.status_code)
+
+        
 
 @app.post("/api/v4/users/grants",status_code=status.HTTP_204_NO_CONTENT)
 def grants(
@@ -134,34 +170,43 @@ def acl_show(
 
 
 @app.post("/api/v4/users",status_code=status.HTTP_201_CREATED)
-def create_user(user_dto:UserDTO):
-    _username = user_dto.username.strip()
-    _email    = user_dto.email.strip()
-    _first_name = user_dto.first_name.strip()
-    _last_name  = user_dto.last_name.strip()
-    _role       = user_dto.role.strip()
+def create_user(user_dto:DTO.CreateUserDTO):
+    response = users_service.create_user(dto = user_dto)
+    if response.is_ok:
+        return response.unwrap()
+    error = response.unwrap_err()
+    raise HTTPException(
+        detail=error.detail,
+        status_code= error.status_code
+    )
+    # _username = user_dto.username.strip()
+    # _email    = user_dto.email.strip()
+    # _first_name = user_dto.first_name.strip()
+    # _last_name  = user_dto.last_name.strip()
+    # _role       = user_dto.role.strip()
     
-    maybe_user = users_dao.find_by_username(username=_username)
-    if maybe_user.is_some:
-        raise HTTPException(status_code=503, detail="{} already exists".format(_username))
-    _password = XoloUtils.pbkdf2(password=user_dto.password)
-    key= users_dao.create(user=UserDTO(
-        username=_username,
-        first_name=_first_name,
-        last_name=_last_name,
-        email=_email,
-        profile_photo="https://www.eldersinsurance.com.au/images/person1.png?width=368&height=278&crop=1",
-        password= _password,
-        role=_role
-    ))
-    return {"key": key}
+    # maybe_user = users_repository.find_by_username(username=_username)
+    # if maybe_user.is_some:
+    #     raise HTTPException(status_code=503, detail="{} already exists".format(_username))
+
+    # _password = XoloUtils.pbkdf2(password=user_dto.password)
+    # key= users_repository.create(user=CreateUserDTO(
+    #     username=_username,
+    #     first_name=_first_name,
+    #     last_name=_last_name,
+    #     email=_email,
+    #     profile_photo="https://www.eldersinsurance.com.au/images/person1.png?width=368&height=278&crop=1",
+    #     password= _password,
+    #     role=_role
+    # ))
+    # return {"key": key}
     # return "CREATE_USER"
 
 
 @app.post("/api/v4/users/verify") 
-def verify(verify_dto:VerifyDTO):
+def verify(verify_dto:DTO.VerifyDTO):
     try:
-        maybe_user = users_dao.find_by_username(verify_dto.username.strip())
+        maybe_user = users_repository.find_by_username(verify_dto.username.strip())
         if maybe_user.is_none:
             raise HTTPException(status_code=403, detail="User not found")
 
@@ -198,49 +243,66 @@ def save(
 
     result = acl.save(key=XOLO_ACL_KEY,output_path=XOLO_ACL_OUTPUT_PATH,filename=XOLO_ACL_FILENAME)
     return JSONResponse(content=jsonable_encoder({"ok": result.is_ok }))
-@app.post("/api/v4/users/auth")
-def auth(auth_dto:AuthDTO)->AuthenticatedDTO:
-    _username = auth_dto.username.strip()
-    log.debug({
-        "event":"AUTH.STARTED",
-        "username":_username,
-    })
-    maybe_user = users_dao.find_by_username(_username)
-    if maybe_user.is_none:
-        raise HTTPException(status_code=403, detail="User not found")
-    user = maybe_user.unwrap()
-    is_auth = XoloUtils.check_password_hash(password=auth_dto.password, password_hash=user.hash_password)
-    temp_secret_key = uuid4().hex
-    if is_auth:
-        iat = datetime.utcnow()
-        exp = iat + timedelta(minutes=60) 
-        access_token = jwt.encode(payload={
-            "uid": user.key,
-            "exp":exp.timestamp(),
-            "iss": "MictlanX",
-            "iat":iat
-            },
-            # key= user.hash_password,
-            key= temp_secret_key,
-            algorithm="HS256"
-        )
-        # token = 
-        return AuthenticatedDTO(
-            username      = user.username,
-            email         = user.email,
-            first_name    = user.first_name,
-            last_name     = user.last_name,
-            profile_photo = user.profile_photo,
-            access_token  = access_token,
-            temporal_secret = temp_secret_key,
-            role=user.role,
-            metadata      = {}
-        )
-    else:
-        raise HTTPException(status_code=401,  detail="Incorrect username or password: UNAUTHORIZED")
-    # users_dao.create(user=user_dto)
 
-    # return "CREATE_USER"
+
+@app.post("/api/v4/users/password-recovery")
+def update_password(
+    dto:DTO.UpdateUserPasswordDTO,
+    secret: Annotated[Union[str,None], Header()]=None
+):
+
+    if secret == None or not secret == os.environ.get("XOLO_ACL_KEY","ed448c7a5449e9603058ce630e26c9e3befb2b15e3692411c001e0b4256852d2"):
+        log.error({
+            "event":"INVALID.SECRET_KEY"
+        })
+        raise HTTPException(status_code=403, detail="You are not authorized, please stop trying or you will be reported and blacklisted.")
+    response = users_service.update_password(dto=dto)
+    if response.is_ok:
+        return response.unwrap()
+    error = response.unwrap_err()
+    raise HTTPException(status_code= error.status_code, detail= error.detail)
+
+@app.post("/api/v4/users/auth")
+def auth(auth_dto:DTO.AuthDTO)->DTO.AuthenticatedDTO:
+    response = users_service.auth(dto = auth_dto)
+    if response.is_ok:
+        return response.unwrap()
+    error = response.unwrap_err()
+    raise HTTPException(status_code= error.status_code, detail= error.detail)
+
+@app.post("/api/v4/licenses")
+def create_license(
+    dto: DTO.AssignLicenseDTO,
+    secret: Annotated[Union[str,None], Header()]=None
+):
+
+    if secret == None or not secret == XOLO_ACL_KEY:
+        log.error({
+            "event":"INVALID.SECRET_KEY"
+        })
+        raise HTTPException(status_code=403, detail="You are not authorized, please stop trying or you will be reported and blacklisted.")
+    response = licenses_service.assign_license(dto = dto)
+    if response.is_ok:
+        return response.unwrap()
+    error = response.unwrap_err()
+    raise HTTPException(status_code= error.status_code, detail= error.detail)
+    
+@app.delete("/api/v4/licenses")
+def create_license(
+    dto: DTO.DeleteLicenseDTO,
+    secret: Annotated[Union[str,None], Header()]=None
+):
+
+    if secret == None or not secret == XOLO_ACL_KEY:
+        log.error({
+            "event":"INVALID.SECRET_KEY"
+        })
+        raise HTTPException(status_code=403, detail="You are not authorized, please stop trying or you will be reported and blacklisted.")
+    response = licenses_service.delete_license(dto = dto)
+    if response.is_ok:
+        return response.unwrap()
+    error = response.unwrap_err()
+    raise HTTPException(status_code= error.status_code, detail= error.detail)
 
 if __name__ =="__main__":
     try:

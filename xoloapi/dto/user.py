@@ -1,8 +1,8 @@
-from typing import Dict,Union,List
+from typing import Dict,Union,List,Optional
 from uuid import uuid4
 from pydantic import BaseModel
     
-class UserDTO(BaseModel):
+class CreateUserDTO(BaseModel):
     username:str
     first_name:str
     last_name:str
@@ -11,10 +11,51 @@ class UserDTO(BaseModel):
     profile_photo:str=""
     role:str="user"
 
+class DeleteLicenseDTO(BaseModel):
+    username:str
+    scope:str
+    force: Optional[bool] = True
+class DeletedLicenseResponseDTO(BaseModel):
+    ok:bool
+
+class AssignLicenseDTO(BaseModel):
+    username: str
+    scope:str
+    expires_in:str
+    force: Optional[bool] = True
+
+class AssignLicenseResponseDTO(BaseModel):
+    expires_at: str
+    ok:bool
+    
+class UpdateUserPasswordDTO(BaseModel):
+    username:str
+    password: str
+class UpdateUserPasswordResponseDTO(BaseModel):
+    ok:bool
+
+class CreateScopeDTO(BaseModel):
+    name:str
+class CreatedScopeResponseDTO(BaseModel):
+    name:str
+
+class AssignScopeDTO(BaseModel):
+    name:str
+    username:str
+class AssignedScopeResponseDTO(BaseModel):
+    name:str
+    username:str
+    ok:bool
+
+class CreatedUserResponseDTO(BaseModel):
+    key: str
 
 class AuthDTO(BaseModel):
     username:str
     password:str
+    scope: Optional[str] = "Xolo"
+
+
     
 class VerifyDTO(BaseModel):
     access_token:str
@@ -31,12 +72,3 @@ class AuthenticatedDTO(BaseModel):
     metadata:Dict[str,str]
     temporal_secret:str
     role:str
-    # key          =  uuid4().hex
-    # first_name   =
-    # last_name    = last_name
-    # email        = email
-    # hashed_password = hashed_password 
-    # profile_photo = profile_photo
-        # self.name         = name
-        # self.display_name = display_name
-        # self.items        = items

@@ -1,10 +1,13 @@
 from pymongo.collection import Collection
+import xoloapi.errors as EX
+
+from option import Result,Ok,Err
 # from pymongo.results import DeleteResult
 from pydantic import BaseModel
 from uuid import uuid4
 # from option import Option, NONE, Some
 # from typing import Dict,Union,List
-from xoloapi.dto.user import UserDTO
+from xoloapi.dto.user import CreateUserDTO
 # from src.interfaces.dao.user import User
 import json as J
 from option import Option,Some,NONE
@@ -30,7 +33,18 @@ class User(BaseModel):
 class UsersRepository(object):
     def __init__(self,collection:Collection):
         self.collection = collection
-    def create(self,user:UserDTO)->str:
+    def update_password(self, username:str, password:str)->Result[bool, EX.XoloError]:
+        try:
+            doc = self.collection.update_one(filter={"username":username},update={"$set":{"hash_password":password}} )
+            if doc.modified_count >0:
+                return Ok(True)
+            else: 
+                return Err(EX.UserNotFound())
+        except Exception as e:
+            return Err(EX.ServerError(message=str(e)))
+    
+
+    def create(self,user:CreateUserDTO)->str:
         _key =  uuid4().hex
         doc = User(
             profile_photo = user.profile_photo,
@@ -51,5 +65,4 @@ class UsersRepository(object):
         if x == None:
             return NONE
         else:
-            print(type(x))
             return Some(User(**x))
