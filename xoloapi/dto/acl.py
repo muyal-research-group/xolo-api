@@ -1,4 +1,4 @@
-from typing import Dict,Set
+from typing import Dict,Set,Optional
 from pydantic import BaseModel
     
 class CheckDTO(BaseModel):
@@ -8,3 +8,4 @@ class CheckDTO(BaseModel):
     
 class GrantsDTO(BaseModel):
     grants:Dict[str,Dict[str,Set]]
+    role:Optional[str]=""

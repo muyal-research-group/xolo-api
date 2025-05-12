@@ -16,19 +16,19 @@ log            = Log(
 class ScopesService(object):
     def __init__(self,repository:ScopesRepository):
         self.repository = repository
-    def assign(self,dto:AssignScopeDTO)->Result[AssignedScopeResponseDTO, EX.XoloError]:
+    async def assign(self,dto:AssignScopeDTO)->Result[AssignedScopeResponseDTO, EX.XoloError]:
         try:
             start_time = T.time()
             dto.name = dto.name.strip().upper()
             dto.username = dto.username.strip()
-            exists_result = self.repository.exists_scope_user(name=dto.name,username=dto.username)
+            exists_result = await self.repository.exists_scope_user(name=dto.name,username=dto.username)
             if exists_result.is_err:
                 return Err(exists_result.unwrap_err())
             exists = exists_result.unwrap()
             if  exists:
                 return Err(EX.AlreadyExists(entity="Scope/User"))
             
-            result        = self.repository.assign(dto = dto)
+            result        = await self.repository.assign(dto = dto)
             log.info({
                 "event":"SCOPE.ASSIGNED",
                 "name":dto.name,
@@ -38,18 +38,19 @@ class ScopesService(object):
             return Ok(AssignedScopeResponseDTO(name=dto.name, username=dto.username, ok=True))
         except Exception as e:
             return Err(EX.ServerError(message=str(e)))
-    def create(self,dto:CreateScopeDTO)->Result[CreatedScopeResponseDTO, EX.XoloError]:
+    async def create(self,dto:CreateScopeDTO)->Result[CreatedScopeResponseDTO, EX.XoloError]:
         try:
             start_time = T.time()
             dto.name = dto.name.strip().upper()
-            exists_result = self.repository.exists_scope(name=dto.name)
+     
+            exists_result = (await self.repository.exists_scope(name=dto.name))
             if exists_result.is_err:
                 return Err(exists_result.unwrap_err())
             exists = exists_result.unwrap()
             if exists:
                 return Err(EX.AlreadyExists(entity="Scope"))
             
-            result        = self.repository.create(dto = dto)
+            result        = await self.repository.create(dto = dto)
             log.info({
                 "event":"SCOPE.CREATED",
                 "name":dto.name,

@@ -5,27 +5,34 @@ services:
     - 27018:27017
   volumes:
     - xolo-db:/data/db
+    - ./mongod.conf:/etc/mongo/mongod.conf:ro
   networks:
     - mictlanx
+  environment:
+    - MONGO_INITDB_ROOT_USERNAME=xolo
+    - MONGO_INITDB_ROOT_PASSWORD=d22a75e9e729debc
   restart: unless-stopped
+  command: ["mongod", "--config","/etc/mongo/mongod.conf"]
 
  xolo:
-  image: nachocode/xolo:api
+  image: nachocode/xolo:api-8a9
   container_name: xolo-api
   environment:
     - OPENAPI_LOGO=https://alpha.tamps.cinvestav.mx/v0/mictlanx/peer0/api/v4/buckets/public-bucket-0/b0953e8db4cab5ea7a1f30a9f2695f43d3649e67e92e4060bcbc59d8a4b358f7
+    - OPENAPI_PREFIX=/xoloapi
+    - OPENAPI_TITLE=Xolo:Identity & Accesss Management
     - XOLO_ACL_OUTPUT_PATH=/mictlanx/xolo
     - XOLO_ACL_FILENAME=xolo-acl.enc
     - XOLO_ACL_DAEMON_HEARTBEAT=1min
     - XOLO_ACL_KEY=ed448c7a5449e9603058ce630e26c9e3befb2b15e3692411c001e0b4256852d2
-    - MONGO_IP_ADDR=xolo-db
-    - MONGO_PORT=27017
+    - MONGODB_URI=mongodb://xolo:d22a75e9e729debc@xolo-db:27017/mictlanx?authSource=admin
     - MONGO_DATABASE_NAME=mictlanx
     - IP_ADDR=0.0.0.0
-    - PORT=10001
+    - XOLO_PORT=10000
     - RELOAD=0
+  command: uvicorn xoloapi.server:app --host ${XOLO_HOST-0.0.0.0} --port ${XOLO_PORT-10000} --reload --log-level debug
   ports:
-    - 10001:10001
+    - 10000:10000
   volumes:
     - /log:/log
     - /mictlanx/xolo:/mictlanx/xolo

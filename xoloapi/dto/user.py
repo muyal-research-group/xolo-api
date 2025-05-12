@@ -15,6 +15,12 @@ class DeleteLicenseDTO(BaseModel):
     username:str
     scope:str
     force: Optional[bool] = True
+class SelfDeleteLicenseDTO(BaseModel):
+    token: str
+    tmp_secret_key:str
+    username:str
+    scope:str
+    force: Optional[bool] = True
 class DeletedLicenseResponseDTO(BaseModel):
     ok:bool
 

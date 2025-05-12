@@ -14,6 +14,14 @@ class XoloError(Exception,ABC):
     def __str__(self):
         return f"{self.detail} - [{self.status_code}]"
 
+class TokenExpired(XoloError):
+    @property
+    def status_code(self)->int:
+        return 401
+    @property
+    def detail(self)->str:
+        return "Token has expired"
+
 class LicenseCreationError(XoloError):
     @property
     def status_code(self)->int:
@@ -31,7 +39,7 @@ class UserNotFound(XoloError):
     def detail(self)->str:
         return "User not found"
 class NotFound(XoloError):
-    def __init__(self,entity:str, *args):
+    def __init__(self,*args,entity:str):
         super().__init__(*args)
         self.entity = entity
     @property
@@ -50,9 +58,10 @@ class UserAlreadyExists(XoloError):
         return "User already exists"
     
 class AlreadyExists(XoloError):
-    def __init__(self,entity:str, *args):
+    def __init__(self,entity:str,*args):
         super().__init__(*args)
         self.entity = entity
+
     @property
     def status_code(self)->int:
         return 409
@@ -61,12 +70,16 @@ class AlreadyExists(XoloError):
         return f"{self.entity.title()} already exists"
 
 class Unauthorized(XoloError):
+    def __init__(self, *args,message:str="credentials are invalid"):
+        super().__init__(*args)
+        self.message = message
+
     @property
     def status_code(self)->int:
         return 401
     @property
     def detail(self)->str:
-        return "Unauthorized access, credentials are invalid"
+        return f"Unauthorized access: {self.message}"
 
 class UnauthorizedScope(XoloError):
     @property
