@@ -1,4 +1,4 @@
-# from pymongo.collection import Collection
+# xoloapi/repositories/scopes.py
 from motor.motor_asyncio import AsyncIOMotorCollection
 from xoloapi.dto.user import CreateScopeDTO,AssignScopeDTO
 from pydantic import BaseModel

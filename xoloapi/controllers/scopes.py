@@ -1,12 +1,11 @@
-
+# xoloapi/controllers/scopes.py
+import os
 from fastapi.routing import APIRouter
-from fastapi import status, Depends,HTTPException,Header
+from fastapi import Depends,HTTPException
 from xoloapi.db import get_collection
-from typing import Annotated, Union
 import xoloapi.services as S
 import xoloapi.repositories as R
 import xoloapi.dto as DTO
-import os
 from xolo.log import Log
 
 router = APIRouter(prefix="/api/v4/scopes")

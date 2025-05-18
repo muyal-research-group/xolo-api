@@ -1,9 +1,8 @@
-# from pymongo.collection import Collection
+# xoloapi/repositories/license.py
 from motor.motor_asyncio import AsyncIOMotorCollection
 import xoloapi.errors as EX
 import option as OP
 import xoloapi.models as M
-import xoloapi.dto as DTO
 
 class LicensesRepository(object):
     

@@ -1,11 +1,11 @@
+# xoloapi/repositories/policies.py
 from typing import Dict, List
-from xolo.abac.models import Policy, Event
+from xolo.abac.models import Policy
 from option import Ok,Err,Result
 
 class ABACPoliciesRepository:
     def __init__(self):
         self.policies: Dict[str, Policy] = {}
-        # self.events: Dict[str, Event] = {}
 
     # ---------- Policy ----------
     def create_policies(self,policies:List[Policy])->Result[int, Exception]:
@@ -32,17 +32,3 @@ class ABACPoliciesRepository:
 
     def delete_policy(self, policy_id: str) -> Result[bool,Exception]:
         return Ok(self.policies.pop(policy_id, None) is not None)
-
-    # # ---------- Event ----------
-    # def create_event(self, event: Event) -> Result[Event,Exception]:
-    #     self.events[event.event_id] = event
-    #     return Ok(event)
-
-    # def get_event(self, event_id: str) -> Result[Event,Exception]:
-    #     return Ok(self.events.get(event_id))
-
-    # def list_events(self) -> Result[List[Event],Exception]:
-    #     return Ok(list(self.events.values()))
-
-    # def delete_event(self, event_id: str) -> Result[bool,Exception]:
-    #     return Ok(self.events.pop(event_id, None) is not None)

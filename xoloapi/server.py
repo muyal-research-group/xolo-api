@@ -1,7 +1,6 @@
 # 
 from xolo.log import Log
 # 
-from xoloapi.dto.acl import GrantsDTO,CheckDTO
 from xoloapi.db import connect_to_mongo,close_mongo_connection
 from xoloapi.controllers import licenses_router,scopes_router,users_router,policies_router
 # 

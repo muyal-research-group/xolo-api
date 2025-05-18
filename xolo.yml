@@ -5,7 +5,7 @@ services:
     - 27018:27017
   volumes:
     - xolo-db:/data/db
-    - ./mongod.conf:/etc/mongo/mongod.conf:ro
+    - ./db/mongod.conf:/etc/mongo/mongod.conf:ro
   networks:
     - mictlanx
   environment:

@@ -1,3 +1,4 @@
+# xoloapi/services/scopes.py
 from xoloapi.repositories.scopes import ScopesRepository
 from xoloapi.dto.user import CreateScopeDTO,AssignScopeDTO,CreatedScopeResponseDTO,AssignedScopeResponseDTO
 import xoloapi.errors as EX

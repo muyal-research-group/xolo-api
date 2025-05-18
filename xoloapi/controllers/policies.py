@@ -1,3 +1,4 @@
+# xoloapi/controllers/policies.py
 from fastapi import APIRouter, HTTPException,Depends
 from typing import List
 from xolo.abac.models import Policy, AccessRequest
@@ -6,7 +7,6 @@ from xoloapi.services.policies import PolicyService
 from xolo.abac.graph import GraphBuilder
 from xolo.abac.communities import CommunityDetector
 from xolo.abac.evaluator import CommunityPolicyEvaluator
-# from xolo.repository import InMemoryRepository
 
 router  = APIRouter(prefix="/api/v4/policies")
 

@@ -1,5 +1,5 @@
+# xoloapi/errors/__init__.py
 from abc import ABC,abstractmethod
-from fastapi import HTTPException
 class XoloError(Exception,ABC):
 
     @property

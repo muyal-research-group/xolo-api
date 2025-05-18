@@ -1,5 +1,5 @@
-from typing import Dict,Union,List,Optional
-from uuid import uuid4
+# xoloapi/dto/user.py
+from typing import Dict,Optional
 from pydantic import BaseModel
     
 class CreateUserDTO(BaseModel):
