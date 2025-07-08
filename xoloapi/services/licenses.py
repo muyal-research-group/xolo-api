@@ -17,7 +17,7 @@ log            = Log(
         console_handler_filter=lambda x: True,
         interval=24,
         when="h",
-        path=os.environ.get("LOG_PATH","/log")
+        path=os.environ.get("LOG_PATH","log")
 )
 class LicensesService(object):
     def __init__(self, 
