@@ -1,7 +1,7 @@
 # xoloapi/services/policies.py
 from option import Err,Result,Ok
 from typing import Dict,List
-from xolo.abac.models import AccessRequest
+from xolo.abac.models import AccessRequest, Policy
 from xoloapi.repositories.policies import ABACPoliciesRepository
 from xolo.abac.graph import GraphBuilder
 from xolo.abac.communities import CommunityDetector
@@ -37,4 +37,24 @@ class PolicyService:
         policies_by_community = self.community_detector.map_policies_to_communities(event_to_policy, event_to_community)
         self.evaluator.run(policies=policies,policies_by_community=policies_by_community)
         return Ok(policies_by_community)
-        
+    
+    def update_policy(self, policy_id: str, updated_policy: Policy) -> Result[bool, Exception]:
+        result = self.repository.update_policy(policy_id, updated_policy)
+        if result.is_err:
+            return result
+
+        # sincronizar con evaluador en memoria
+        self.evaluator.update_policy(updated_policy)
+        return Ok(True)
+
+    def create_policy_incremental(self, policy: Policy) -> Result[bool, Exception]:
+        res = self.repository.create_policy(policy)
+        if res.is_err:
+            return res
+
+        # Insertar dinámicamente en la mejor comunidad ya existente
+        if self.evaluator.policies_by_community:
+            self.evaluator.add_policy(policy)
+
+        return Ok(True)
+

@@ -73,11 +73,6 @@ async def self_delete_license(
     dto: DTO.SelfDeleteLicenseDTO,
     licenses_service:S.LicensesService = Depends(get_licenses_service)
 ):
-    # if secret == None or not secret == XOLO_ACL_KEY:
-    #     log.error({
-    #         "event":"INVALID.SECRET_KEY"
-    #     })
-    #     raise HTTPException(status_code=403, detail="You are not authorized, please stop trying or you will be reported and blacklisted.")
     response = await licenses_service.self_delete_license(dto = dto)
     if response.is_ok:
         return response.unwrap()

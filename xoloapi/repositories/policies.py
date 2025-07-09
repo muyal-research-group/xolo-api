@@ -32,3 +32,10 @@ class ABACPoliciesRepository:
 
     def delete_policy(self, policy_id: str) -> Result[bool,Exception]:
         return Ok(self.policies.pop(policy_id, None) is not None)
+    
+    def update_policy(self, policy_id: str, updated_policy: Policy) -> Result[Policy, Exception]:
+        if policy_id not in self.policies:
+            return Err(Exception("Policy not found"))
+        self.policies[policy_id] = updated_policy
+        return Ok(updated_policy)
+

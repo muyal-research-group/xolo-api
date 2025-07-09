@@ -20,7 +20,7 @@ log            = Log(
         console_handler_filter=lambda x: True,
         interval=24,
         when="h",
-        path=os.environ.get("LOG_PATH","/log")
+        path=os.environ.get("LOG_PATH","log")
 )
 XOLO_ACL_OUTPUT_PATH      = os.environ.get("XOLO_ACL_OUTPUT_PATH","/mictlanx/xolo")
 XOLO_ACL_FILENAME         = os.environ.get("XOLO_ACL_FILENAME","xolo-acl.enc")

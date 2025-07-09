@@ -1,5 +1,23 @@
 import pytest
 import httpx
+from xolo.abac.models import AccessRequest,AttributeComponent
+# @pytest.mark.skip("")
+@pytest.mark.asyncio
+async def test_evaluate_batch():
+    res = httpx.post(url="http://localhost:10000/api/v4/policies/evaluate/batch",json=
+        [
+            AccessRequest(
+                subject=AttributeComponent(attribute="a",value="x"),
+                asset=AttributeComponent(attribute="a",value="x"),
+                space=AttributeComponent(attribute="a",value="x"),
+                time=AttributeComponent(attribute="a",value="x"),
+                action=AttributeComponent(attribute="a",value="x"),
+            ).model_dump()
+        ]
+    ,timeout=120)
+    print(res.content)
+    assert res.status_code == 200
+
 
 @pytest.mark.skip("")
 @pytest.mark.asyncio
@@ -64,7 +82,7 @@ async def test_get_resources_by_username():
     res = httpx.get(url="http://localhost:10000/api/v4/users/jcastillo/resources",timeout=120)
     print(res.content)
     assert res.status_code == 200
-# @pytest.mark.skip("")
+@pytest.mark.skip("")
 @pytest.mark.asyncio
 async def test_grantx():
     res = httpx.post(url="http://localhost:10000/api/v4/users/grantx",timeout=120,json={
