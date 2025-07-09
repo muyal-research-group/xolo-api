@@ -39,7 +39,6 @@ class LicensesService(object):
                 decoded = jwt.decode(jwt= dto.token, key=dto.tmp_secret_key,algorithms="HS256")
                 self_scope = decoded.get("iss","")
                 self_username = decoded.get("uid2","")
-                print(decoded)
                 if self_scope != dto.scope or self_username != dto.username:
                     return OP.Err(EX.Unauthorized(message="Permission denied: you do not have rights to delete licenses assigned to other users"))
             except jwt.ExpiredSignatureError:

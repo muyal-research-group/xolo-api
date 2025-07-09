@@ -142,6 +142,7 @@ class UsersService(object):
                 return Err(EX.UserNotFound())
             user       = maybe_user.unwrap()
             is_auth    = XoloUtils.check_password_hash(password=dto.password, password_hash=user.hash_password)
+            
             scope_exists = (await self.scopes_repository.exists_scope(name=dto.scope)).unwrap_or(False)
             if not scope_exists:
                 log.error({

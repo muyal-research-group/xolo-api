@@ -1270,13 +1270,14 @@ standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.5.0)
 
 [[package]]
 name = "xolo"
-version = "0.0.9a6"
+version = "0.0.9a7"
 description = ""
 optional = false
 python-versions = ">=3.10,<4"
 groups = ["main"]
 files = [
-    {file = "xolo-0.0.9a6.tar.gz", hash = "sha256:e5517828810278ce54bf16a606d0f4a16cbf77fbcaadb83ebd37c6f67648f314"},
+    {file = "xolo-0.0.9a7-py3-none-any.whl", hash = "sha256:30aba3c89345e01d101a29d88ae812f07f466c5912c0146239c20feb8237dc7b"},
+    {file = "xolo-0.0.9a7.tar.gz", hash = "sha256:0ef5a27622c7a17c7f2d9ae7e0cbc9d835509ff1cc0fb0f9c6fdb50e27abf39a"},
 ]
 
 [package.dependencies]
@@ -1290,10 +1291,11 @@ python-dotenv = ">=1.1.0,<2.0.0"
 requests = ">=2.31.0,<3.0.0"
 
 [package.source]
-type = "file"
-url = "../xolo/dist/xolo-0.0.9a6.tar.gz"
+type = "legacy"
+url = "https://test.pypi.org/simple"
+reference = "test"
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "c3d49956fb46b2a1a0632b5704a8869d0e36aa1708216a8bb1464c5ff07bf30d"
+content-hash = "340e96cd2efbe0097b9a920b4fef6697392e01624532ea0222dee9a867c8c583"

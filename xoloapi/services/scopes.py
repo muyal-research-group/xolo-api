@@ -8,15 +8,17 @@ import os
 import time as T
 
 log            = Log(
-        name   = "xolo.scopesservice",
+        name   = __name__,
         console_handler_filter=lambda x: True,
         interval=24,
         when="h",
         path=os.environ.get("LOG_PATH","/log")
 )
+
 class ScopesService(object):
     def __init__(self,repository:ScopesRepository):
         self.repository = repository
+        
     async def assign(self,dto:AssignScopeDTO)->Result[AssignedScopeResponseDTO, EX.XoloError]:
         try:
             start_time = T.time()
