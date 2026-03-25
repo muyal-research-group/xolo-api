@@ -76,9 +76,36 @@ async def create_user(
     })
     raise error.to_http_exception()
 
+@router.post("/signup",status_code=status.HTTP_201_CREATED)
+async def signup(
+    user_dto:DTO.SignUpDTO,
+    users_service:S.UsersService = Depends(get_users_service)
+):
+    t1 = T.time()
+    response = await users_service.signup(dto = user_dto)
+    if response.is_ok:
+        log.info(
+            {
+                "event":"USER_SIGNUP",
+                "username": user_dto.username,
+                "response_time": T.time() - t1
+            }
+        )
+        return response.unwrap()
+    error = response.unwrap_err()
+    log.error({
+        "code": error.detail.code,
+        "detail":error.detail.msg,
+        "username": user_dto.username,
+        "response_time": T.time() - t1
+    })
+    raise error.to_http_exception()
 
 
-@router.post("/verify") 
+
+
+
+@router.post("/verify",status_code=status.HTTP_204_NO_CONTENT)
 async def verify(
     verify_dto:DTO.VerifyDTO, 
     users_service:S.UsersService = Depends(get_users_service)
@@ -101,7 +128,7 @@ async def verify(
   raise error.to_http_exception()
 #   raise HTTPException(status_code= error.status_code, detail= error.detail)
   
-@router.post("/password-recovery")
+@router.post("/password-recovery",status_code=status.HTTP_204_NO_CONTENT)
 async def update_password(
     dto:DTO.UpdateUserPasswordDTO,
     secret: Annotated[Union[str,None], Header()]=None,

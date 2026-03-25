@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "xoloapi"
-version = "0.0.8-alpha-8"
+version = "0.0.10a18"
 description = ""
 authors = ["Ignacio Castillo <ignacio.bcastillo@gmail.com>"]
 readme = "README.md"
@@ -22,7 +22,8 @@ numpy = "^2.2.5"
 xolo = {version = "0.0.10a1", source = "test"}
 redis = {extras = ["async"], version = "^7.0.0"}
 bcrypt = "^5.0.0"
-commonx = "0.0.1a1"
+commonx = "0.0.1a2"
+# commonx = "0.0.1a1"
 
 [tool.poetry.group.dev.dependencies]
 pytest-asyncio = "^0.26.0"

@@ -408,7 +408,7 @@ class XoloACL:
         except Exception as e:
             return Err(e)
 
-    async def get_user_dashboard_view(
+    async def get_user_resources(
         self,
         user_id: str,
         owned_page: int = 1,

@@ -17,7 +17,6 @@ class DashboardFilterDTO(BaseModel):
     page_size: int = 10
     
 class CheckDTO(BaseModel):
-    # principal_id:str
     resource_id:str
     permissions:List[str]
     

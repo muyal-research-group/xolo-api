@@ -30,14 +30,14 @@ def get_service():
 
 # ---------- Policy Endpoints ----------
 
-@router.post("/")
+@router.post("")
 def create_policy(policies: List[Policy], repo:ABACPoliciesRepository = Depends(get_repo)):
     res = repo.create_policies(policies)
     if res.is_err:
         raise HTTPException(status_code=500, detail="Failed to create policy")
     return { "n_added":res.unwrap()}
 
-@router.get("/")
+@router.get("")
 def list_policies(repo:ABACPoliciesRepository = Depends(get_repo)):
     res = repo.list_policies()
     if res.is_err:

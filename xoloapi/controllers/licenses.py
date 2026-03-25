@@ -36,7 +36,7 @@ def get_licenses_service()->S.LicensesService:
     return service
 
 
-@router.post("/")
+@router.post("")
 async def create_license(
     dto: DTO.AssignLicenseDTO,
     secret: Annotated[Union[str,None], Header()]=None,
@@ -62,7 +62,7 @@ async def create_license(
     })
     raise HTTPException(status_code= error.status_code, detail= error.detail)
     
-@router.delete("/")
+@router.delete("")
 async def delete_license(
     dto: DTO.DeleteLicenseDTO,
     secret: Annotated[Union[str,None], Header()]=None,

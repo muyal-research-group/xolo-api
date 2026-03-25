@@ -9,3 +9,4 @@ scripts/out
 **/log/*
 .coverage
 log/*
+*.lock

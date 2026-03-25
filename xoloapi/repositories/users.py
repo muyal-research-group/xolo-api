@@ -122,5 +122,4 @@ class UsersRepository(object):
         if x == None:
             return NONE
         else:
-            print(x)
             return Some(User(**x))

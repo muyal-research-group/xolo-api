@@ -28,7 +28,7 @@ class ScopesRepository(object):
     async def exists_scope(self,name:str)->Result[bool, EX.XError]:
         try:
             doc = await self.collection.find_one({
-                "name":name,
+                "name":name.upper(),
             })
             if doc == None:
                 return Ok(False)

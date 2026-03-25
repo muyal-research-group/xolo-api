@@ -27,7 +27,7 @@ def get_scopes_service()->S.ScopesService:
     service = S.ScopesService(repository= repository)
     return service
 
-@router.post("/")
+@router.post("")
 async def create_scope(
     dto:DTO.CreateScopeDTO,
     scopes_service:S.ScopesService = Depends(get_scopes_service)

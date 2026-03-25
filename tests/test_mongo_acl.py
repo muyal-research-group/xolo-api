@@ -236,13 +236,13 @@ async def test_get_resources(acl_service:XoloACL):
     )
     assert x.is_ok, f"Failed to grant group access: {x.unwrap_err()}"
 
-    view_result = await acl_service.get_user_dashboard_view(owner)
+    view_result = await acl_service.get_user_resources(owner)
     assert view_result.is_ok, f"Failed to get dashboard view: {view_result.unwrap_err()}"
     view = view_result.unwrap()
     print("Dashboard View[Owner]:", view)
 
 
-    view_result = await acl_service.get_user_dashboard_view(other_user)
+    view_result = await acl_service.get_user_resources(other_user)
     assert view_result.is_ok, f"Failed to get dashboard view: {view_result.unwrap_err()}"
     view = view_result.unwrap()
     print("Dashboard View[Other User]:", view)

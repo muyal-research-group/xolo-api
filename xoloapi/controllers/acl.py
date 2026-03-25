@@ -46,7 +46,7 @@ async def get_resources(
     # if shared_page < 1:
         # shared_page = 1
 
-    result = await acl.get_user_dashboard_view(
+    result = await acl.get_user_resources(
         user_id  = me.key,
         owned_page = owned_page,
         owned_page_size = owned_page_size,

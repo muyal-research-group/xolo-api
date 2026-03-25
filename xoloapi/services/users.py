@@ -33,6 +33,127 @@ class UsersService(object):
         self.scopes_repository = scopes_repository
         self.licenses_service  = licenses_service
 
+    async def signup(self,dto:DTO.SignUpDTO)->Result[DTO.CreatedUserResponseDTO,EX.XError]:
+        try:
+            start_time  = T.time()
+            _username   = dto.username.strip()
+            _email      = dto.email.strip()
+            _first_name = dto.first_name.strip()
+            _last_name  = dto.last_name.strip()
+            _scope      = dto.scope.strip().upper()
+            log.debug({
+                "event":"SIGNUP.USER",
+                "username":_username,
+                "email":_email,
+                "first_name":_first_name,
+                "last_name":_last_name,
+                "scope":_scope
+            })
+            maybe_user  = await self.repository.find_by_username(username=_username)
+            if maybe_user.is_some:
+                e = EX.AlreadyExists(raw_detail="Username already exists", metadata={"entity":"user","id":_username})
+                log.error({
+                    "error":"USER.ALREADY.EXISTS",
+                    "detail":e.detail.msg,
+                    "status_code":e.status_code
+                })
+                return Err(e)
+            scope_exists = (await self.scopes_repository.exists_scope(name=_scope)).unwrap_or(False)
+            if not scope_exists:
+                e = EX.NotFound(raw_detail="Scope not found", metadata={"entity":"scope","id":_scope})
+                log.error({
+                    "error":"SCOPE.NOT.FOUND",
+                    "scope":_scope,
+                    "detail":e.detail.msg,
+                    "status_code":e.status_code
+                })
+                return Err(e)
+
+            _password = XoloUtils.pbkdf2(password=dto.password)
+            result    = await self.repository.create(user=
+                DTO.CreateUserDTO(
+                    username      = _username,
+                    first_name    = _first_name,
+                    last_name     = _last_name,
+                    email         = _email,
+                    profile_photo = f"https://api.dicebear.com/9.x/fun-emoji/svg?seed={_username}",
+                    password      = _password,
+                )
+            )
+            if result.is_err:
+                log.error({
+                    "event":"USER.SIGNUP.ERROR",
+                    "username":_username,
+                    "email":_email,
+                    "first_name":_first_name,
+                    "last_name":_last_name,
+                    "detail":str(result.unwrap_err())
+                })
+                return Err(result.unwrap_err())
+            
+            key = result.unwrap()
+
+            log.info({
+                "event":"CREATED.USER",
+                "user_id":key,
+                "username":_username,
+                "email":_email,
+                "first_name":_first_name,
+                "last_name":_last_name,
+                "response_time":T.time() - start_time
+            })
+
+            res = await self.scopes_repository.assign(
+                dto = DTO.AssignScopeDTO(
+                    name = _scope,
+                    username = _username
+                )
+            )
+
+            if res.is_err:
+                log.error({
+                    "event":"USER.SIGNUP.SCOPE.ASSIGNMENT.ERROR",
+                    "username":_username,
+                    "scope":_scope,
+                    "detail":str(res.unwrap_err())
+                })
+                return Err(res.unwrap_err())
+            
+            log.info({
+                "event":"USER.SIGNUP.SCOPE.ASSIGNED",
+                "username":_username,
+                "scope":_scope,
+            })
+
+            res = await self.licenses_service.assign_license(
+                dto= DTO.AssignLicenseDTO(
+                    username   = _username,
+                    scope      = _scope,
+                    expires_in = dto.expiration,
+                    force      = True
+                )
+            )
+            if res.is_err:
+                log.error({
+                    "event":"USER.SIGNUP.LICENSE.ASSIGNMENT.ERROR",
+                    "username":_username,
+                    "scope":_scope,
+                    "detail":str(res.unwrap_err())
+                })
+                return Err(res.unwrap_err())
+            
+            log.info({
+                "event":"USER.SIGNUP.LICENSE.ASSIGNED",
+                "username":_username,
+                "scope":_scope,
+            })
+
+            return Ok(DTO.CreatedUserResponseDTO(key=key))
+        
+        except Exception as e:
+            return Err(EX.ServerError(raw_detail=str(e)))
+        
+
     async def get_by_id(self,user_id:str)->Result[DTO.UserDTO,EX.XError]:
         try:
             maybe_user = await self.repository.find_by_id(user_id=user_id)
@@ -173,6 +294,7 @@ class UsersService(object):
             
         except Exception as e:
             return Err(e)
+    
     async def auth(self,dto: DTO.AuthDTO)->Result[DTO.AuthenticatedDTO,EX.XError]:
         try:
             start_time   = T.time()
@@ -336,6 +458,7 @@ class UsersService(object):
             return Ok(res.unwrap())
         except Exception as e:
             return Err(EX.ServerError(raw_detail =str(e)))
+    
     async def enable_user(self,dto:DTO.EnableOrDisableUserDTO)->Result[bool, EX.XError]:  
         try:
             maybe_user = await self.repository.find_by_username(dto.username.strip())
@@ -348,8 +471,6 @@ class UsersService(object):
             return Ok(res.unwrap())
         except Exception as e:
             return Err(EX.ServerError(raw_detail=str(e)))
-        
-    # async 
         
     async def verify(self,dto:DTO.VerifyDTO)->Result[bool, EX.XError]:
         try:
