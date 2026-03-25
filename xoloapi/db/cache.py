@@ -23,7 +23,9 @@ async def connect_to_redis():
             client = aioredis.Redis(connection_pool=redis_pool)
             await client.ping()
         except Exception as e:
-            pass
+            print(f"Error connecting to Redis: {e}")
+            redis_pool = None
+            raise e
 
 async def close_redis_connection():
     global redis_pool

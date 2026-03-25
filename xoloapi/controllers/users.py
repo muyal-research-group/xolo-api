@@ -164,9 +164,19 @@ async def update_password(
 @router.post("/logout",status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     dto:DTO.LogoutDTO,
-    users_service:S.UsersService = Depends(get_users_service)
+    me: DTO.UserDTO = Depends(MX.get_current_user),
+    users_service:S.UsersService = Depends(get_users_service),
 ):
     t1 = T.time()
+    if dto.username != me.username:
+        log.error({
+            "event":"USER.LOGOUT.UNAUTHORIZED",
+            "username": dto.username,
+            "actor": me.username,
+            "response_time": T.time() - t1
+        })
+        raise EX.AccessDenied(raw_detail="You can only logout from your own account.").to_http_exception()
+    
     response = await users_service.logout(dto = dto)
     if response.is_ok:
         log.info({
@@ -180,7 +190,7 @@ async def logout(
     log.error({
         "code":error.detail.code,
         "username": dto.username,
-        "reason": error.detail.detail,
+        "reason": error.detail.msg,
         "response_time": T.time() - t1
     })
     raise error.to_http_exception()
@@ -221,6 +231,7 @@ async def me(
 
 @router.post("/{username}/enable",status_code=status.HTTP_204_NO_CONTENT)
 async def enable_user(
+    username:str,
     dto:DTO.EnableOrDisableUserDTO,
     users_service:S.UsersService = Depends(get_users_service),
     me:DTO.UserDTO = Depends(MX.get_current_user)
@@ -243,7 +254,7 @@ async def enable_user(
     log.error({
         "code":error.detail.code,
         "username": username,
-        "reason": error.detail.detail,
+        "reason": error.detail.msg,
         "response_time": T.time() - t1
     })
     raise error.to_http_exception()
@@ -251,6 +262,7 @@ async def enable_user(
 
 @router.post("/{username}/disable",status_code=status.HTTP_204_NO_CONTENT)
 async def disable_user(
+    username:str,
     dto:DTO.EnableOrDisableUserDTO,
     users_service:S.UsersService = Depends(get_users_service),
     me:DTO.UserDTO = Depends(MX.get_current_user)
@@ -274,7 +286,7 @@ async def disable_user(
         "code":error.detail.code,
         "code_int":error.detail.code_int,
         "username": username,
-        "reason": error.detail,
+        "reason": error.detail.msg,
         "response_time": T.time() - t1
     })
     raise error.to_http_exception()

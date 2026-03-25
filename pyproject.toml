@@ -24,6 +24,7 @@ redis = {extras = ["async"], version = "^7.0.0"}
 bcrypt = "^5.0.0"
 commonx = "0.0.1a2"
 # commonx = "0.0.1a1"
+fastapi = "^0.135.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest-asyncio = "^0.26.0"

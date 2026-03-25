@@ -25,7 +25,7 @@ class UsersRepository(object):
 
     async def enable_user(self, username:str)->Result[bool, EX.XError]:
         try:
-            doc = await self.collection.update_one(filter={"username":username},update={"$set":{"disabled":True}} )
+            doc = await self.collection.update_one(filter={"username":username},update={"$set":{"disabled":False}} )
             if doc.modified_count >0:
                 return Ok(True)
             else: 
@@ -35,7 +35,7 @@ class UsersRepository(object):
 
     async def disable_user(self, username:str)->Result[bool, EX.XError]:
         try:
-            doc = await self.collection.update_one(filter={"username":username},update={"$set":{"disabled":False}} )
+            doc = await self.collection.update_one(filter={"username":username},update={"$set":{"disabled":True}} )
             if doc.modified_count >0:
                 return Ok(True)
             else: 
@@ -60,7 +60,10 @@ class UsersRepository(object):
             token           = await self.cache_redis.get(f"user:{username}:access_token")
             temp_secret_key = await self.cache_redis.get(f"user:{username}:temp_secret_key")
 
-            if token is None or temp_secret_key is None:
+            if (token is None and temp_secret_key is not None) or (token is not None and temp_secret_key is None):
+                
+                return Ok(NONE)
+            elif token is None and temp_secret_key is None:
                 return Err(EX.Unauthorized(raw_detail="Access token has expired"))
             else:
                 return Ok(Some((token, temp_secret_key)))
@@ -123,3 +126,12 @@ class UsersRepository(object):
             return NONE
         else:
             return Some(User(**x))
+    async def delete_by_id(self,user_id:str)->Result[bool, EX.XError]:
+        try:
+            doc = await self.collection.delete_one(filter={"key":user_id} )
+            if doc.deleted_count >0:
+                return Ok(True)
+            else: 
+                return Err(EX.NotFound(raw_detail="User not found"))
+        except Exception as e:
+            return Err(EX.ServerError(raw_detail=str(e)))

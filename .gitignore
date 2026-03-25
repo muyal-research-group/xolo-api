@@ -10,3 +10,4 @@ scripts/out
 .coverage
 log/*
 *.lock
+.env.prod

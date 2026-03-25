@@ -1,9 +1,5 @@
 import pytest
 import pytest_asyncio
-import asyncio
-
-
-# from xoloapi.services import UsersService
 import xoloapi.services as SX
 import xoloapi.repositories as RX 
 import xoloapi.db as DX
@@ -11,23 +7,15 @@ import xoloapi.db.cache as CacheX
 from xoloapi.db.constants import CollectionNames
 import xoloapi.dto as DTO   
 import xoloapi.middleware as MX
-
-from mongomock_motor import AsyncMongoMockClient
 from motor.motor_asyncio import AsyncIOMotorClient
-from xoloapi.models import GroupMember,Permission,PrincipalType
-from typing import AsyncGenerator
-
-from datetime import datetime
-
-# --- 1. THE SETUP (Async Fixtures) ---
-
 
 
 @pytest_asyncio.fixture
 async def user_service():
     client  = AsyncIOMotorClient("mongodb://localhost:27018")
-    db      = client["test_mictlan_db"]
-    client.drop_database()
+    database_name = "test_mictlan_db"
+    db      = client[database_name]
+    client.drop_database(name_or_database=database_name)
     for col_name in [CollectionNames.USERS_COLLECTION_NAME,
                      CollectionNames.LICENSES_COLLECTION_NAME,
                      CollectionNames.SCOPES_COLLECTION_NAME,
@@ -109,7 +97,7 @@ async def license_service():
         ),
         secret_key = "TEST",
         users_repository = RX.UsersRepository(
-            collection = DX.get_collection(CollectionNames.USERS_COLLECTION_NAME),
+            collection = db[CollectionNames.USERS_COLLECTION_NAME],
             cache_redis = None
         )
     )

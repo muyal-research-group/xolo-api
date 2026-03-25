@@ -37,7 +37,7 @@ class LicensesService(object):
             dto.username = dto.username.strip()
             dto.scope = dto.scope.strip().upper()
             try: 
-                decoded = jwt.decode(jwt= dto.token, key=dto.tmp_secret_key,algorithms="HS256")
+                decoded = jwt.decode(jwt= dto.token, key=dto.tmp_secret_key,algorithms=["HS256"])
                 self_scope = decoded.get("iss","")
                 self_username = decoded.get("uid2","")
                 if self_scope != dto.scope or self_username != dto.username:
@@ -47,7 +47,7 @@ class LicensesService(object):
             except jwt.InvalidTokenError as e:
                 return OP.Err(EX.Unauthorized(raw_detail=str(e) ))
             except Exception as e:
-                raise OP.Err(EX.Unauthorized(raw_detail=str(e)))    
+                return OP.Err(EX.Unauthorized(raw_detail=str(e)))    
             # token = dto.token
 
             result = await self.repository.delete_by_username_scope(username=dto.username, scope=dto.scope)

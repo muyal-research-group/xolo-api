@@ -117,6 +117,7 @@ class UsersService(object):
                     "scope":_scope,
                     "detail":str(res.unwrap_err())
                 })
+                res = await self.repository.delete_by_id(user_id=key)
                 return Err(res.unwrap_err())
             
             log.info({
@@ -140,6 +141,7 @@ class UsersService(object):
                     "scope":_scope,
                     "detail":str(res.unwrap_err())
                 })
+                res = await self.repository.delete_by_id(user_id=key)
                 return Err(res.unwrap_err())
             
             log.info({
@@ -151,6 +153,7 @@ class UsersService(object):
             return Ok(DTO.CreatedUserResponseDTO(key=key))
         
         except Exception as e:
+
             return Err(EX.ServerError(raw_detail=str(e)))
         
 
@@ -266,7 +269,7 @@ class UsersService(object):
         except Exception as e:
             return Err(EX.ServerError(raw_detail=str(e)))
         
-    async def check_license_and_scope(self,username:str,scope:str)->bool:
+    async def check_license_and_scope(self,username:str,scope:str)->Result[bool,EX.XError]:
         try:
             scope_exists = (await self.scopes_repository.exists_scope(name=scope)).unwrap_or(False)
             if not scope_exists:
@@ -290,10 +293,10 @@ class UsersService(object):
             license              = license_result.unwrap()
             license_is_valid_res =  self.licenses_service.lm.verify(user_id=username,app_id=scope, license_key=license)
             license_is_valid     = license_is_valid_res.unwrap_or(False)
-            return license_is_valid
+            return Ok(license_is_valid)
             
         except Exception as e:
-            return Err(e)
+            return Err(EX.ServerError(raw_detail=str(e)))
     
     async def auth(self,dto: DTO.AuthDTO)->Result[DTO.AuthenticatedDTO,EX.XError]:
         try:
@@ -400,7 +403,8 @@ class UsersService(object):
                         "iss": dto.scope,
                         "iat":iat.timestamp(),
                         "uid2":user.username
-                    }
+                    },
+                    expires_delta=timedelta(seconds=exp_in_seconds)
                 )
                 # access_token    = jwt.encode(payload={
                     # },
@@ -446,13 +450,14 @@ class UsersService(object):
         except Exception as e:
             return Err(EX.ServerError(raw_detail=str(e)))
     
-    async def disabled_user(self,dto:DTO.EnableOrDisableUserDTO)->Result[bool, EX.XError]:  
+    async def disable_user(self,dto:DTO.EnableOrDisableUserDTO)->Result[bool, EX.XError]:  
         try:
-            maybe_user = await self.repository.find_by_username(dto.username.strip())
+            username = dto.username.strip()
+            maybe_user = await self.repository.find_by_username(username)
             if maybe_user.is_none:
                 return Err(EX.NotFound(entity="User"))
             user       = maybe_user.unwrap()
-            res        = await self.repository.disable_user(user_id=user.key)
+            res        = await self.repository.disable_user(username=username)
             if res.is_err:
                 return Err(res.unwrap_err())
             return Ok(res.unwrap())
@@ -461,11 +466,12 @@ class UsersService(object):
     
     async def enable_user(self,dto:DTO.EnableOrDisableUserDTO)->Result[bool, EX.XError]:  
         try:
-            maybe_user = await self.repository.find_by_username(dto.username.strip())
+            username = dto.username.strip()
+            maybe_user = await self.repository.find_by_username(username)
             if maybe_user.is_none:
                 return Err(EX.NotFound(entity="User"))
             user       = maybe_user.unwrap()
-            res        = await self.repository.enable_user(user_id=user.key)
+            res        = await self.repository.enable_user(username=username)
             if res.is_err:
                 return Err(res.unwrap_err())
             return Ok(res.unwrap())
@@ -474,12 +480,13 @@ class UsersService(object):
         
     async def verify(self,dto:DTO.VerifyDTO)->Result[bool, EX.XError]:
         try:
-                maybe_user = await self.repository.find_by_username(dto.username.strip())
+                username   = dto.username.strip()
+                maybe_user = await self.repository.find_by_username(username)
                 if maybe_user.is_none:
-                    return Err(EX.NotFound(raw_detail="User not found by username", metadata={"entity":"User","id":dto.username}))
+                    return Err(EX.NotFound(raw_detail="User not found by username", metadata={"entity":"User","id":username}))
                 user                = maybe_user.unwrap()
                 # is_auth             = True
-                access_token_result = await self.repository.get_access_token(username=dto.username.strip())
+                access_token_result = await self.repository.get_access_token(username=username)
                 if access_token_result.is_err:
                     return Err(EX.Unauthorized(raw_detail=access_token_result.unwrap_err().detail.raw_error))
                 
@@ -490,7 +497,9 @@ class UsersService(object):
                 (stored_access_token, stored_secret) = access_token_maybe.unwrap()
                 if stored_access_token != dto.access_token:
                     return Err(EX.Unauthorized(raw_detail="Invalid access token"))
-                
+                if stored_secret != dto.secret:
+                    return Err(EX.Unauthorized(raw_detail="Invalid secret key"))
+
 
                 claims = jwt.decode(
                     jwt=dto.access_token,

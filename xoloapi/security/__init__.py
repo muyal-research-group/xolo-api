@@ -10,9 +10,9 @@ import jwt
 import commonx.errors as EX
 class Security:
     ACCESS_TOKEN_EXPIRE_MINUTES:str =int(os.environ.get("XOLO_JWT_EXPIRE_MINUTES",15))
-    SECRET_KEY:str =os.environ.get("XOLO_JWT_SECRET","09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7")
+    SECRET_KEY:str =os.environ.get("XOLO_JWT_SECRET")
     ALGORITHM:str =os.environ.get("XOLO_JWT_ALGORITHM","HS256")
-    API_KEY:str = os.environ.get("XOLO_API_KEY","ed448c7a5449e9603058ce630e26c9e3befb2b15e3692411c001e0b4256852d2")
+    API_KEY:str = os.environ.get("XOLO_API_KEY")
     
     @staticmethod
     async def hash_value(value: str) -> str:
@@ -28,9 +28,7 @@ class Security:
     @staticmethod
     def decode_access_token(token: str, secret_key: str) -> Result[dict,EX.XError]:
         try:
-            # Decodifica el token
             payload         = jwt.decode(token, secret_key, algorithms=[Security.ALGORITHM])
-            print("PAYLOAD", payload)
             ct              = datetime.now(timezone.utc)
             current_time    = ct.timestamp()
             expiration_time = float(payload.get("exp",0))
@@ -38,16 +36,6 @@ class Security:
                 return Ok(payload)
             else:
                 return Err(EX.TokenExpired(raw_detail="Token has expired."))
-            # return Ok(payload)
-            # if user_id is None:
-                # raise EX.InvalidCredentialsError().to_http_exception()
-            # user_result = await users_service.get_by_id(user_id=user_id)
-            # if user_result.is_err:
-                # raise EX.InvalidCredentialsError().to_http_exception()
-            # user = user_result.unwrap()
-            # if user is None:
-                # raise EX.InvalidCredentialsError().to_http_exception()
-            # return user
         except InvalidTokenError:
             return Err(EX.InvalidCredentialsError())
                             

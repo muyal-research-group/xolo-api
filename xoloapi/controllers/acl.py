@@ -194,7 +194,7 @@ async def remove_member_from_group(
     log.info({
         "action":"acl.remove_member_from_group",
         "group_id":group_id,
-        "member_id":member_id,
+        "members":dto.members,
         "time":round(t2-t1,4)
     })
     return

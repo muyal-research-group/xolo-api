@@ -94,5 +94,5 @@ async def get_current_user(
     current_user: Annotated[DTO.UserDTO, Depends(__get_current_user)]
 ):
     if current_user.disabled:
-        raise EX.InactiveUserError(user_id=str(current_user.user_id))
+        raise EX.InactiveUserError(user_id=str(current_user.key))
     return current_user
