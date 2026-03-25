@@ -9,7 +9,7 @@ from xolo.abac.communities import CommunityDetector
 from xolo.abac.evaluator import CommunityPolicyEvaluator
 from fastapi import Body
 
-router  = APIRouter(prefix="/api/v4/policies")
+router  = APIRouter(prefix="/policies")
 
 
 

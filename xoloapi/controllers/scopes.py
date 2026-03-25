@@ -5,17 +5,18 @@ from fastapi import Depends,HTTPException
 from xoloapi.db import get_collection
 import xoloapi.services as S
 import xoloapi.repositories as R
-import xoloapi.dto as DTO
+import commonx.dto.xolo as DTO
 from xolo.log import Log
+import xoloapi.config as Cfg
 
-router = APIRouter(prefix="/api/v4/scopes")
-XOLO_ACL_KEY = os.environ.get("XOLO_ACL_KEY","ed448c7a5449e9603058ce630e26c9e3befb2b15e3692411c001e0b4256852d2")
+router = APIRouter(prefix="/scopes")
+# XOLO_ACL_KEY = CX.XOLO_ACL_KEY
 log            = Log(
-        name   = "users.controller",
-        console_handler_filter=lambda x: True,
-        interval=24,
-        when="h",
-        path=os.environ.get("LOG_PATH","log")
+        name                   = "scopes.controller",
+        console_handler_filter = lambda x: True,
+        interval               = Cfg.XOLO_LOG_INTERVAL,
+        when                   = Cfg.XOLO_LOG_WHEN,
+        path                   = Cfg.XOLO_LOG_PATH
 )
 
 def get_scopes_service()->S.ScopesService:
@@ -33,8 +34,16 @@ async def create_scope(
 ):
     response = await scopes_service.create(dto = dto)
     if response.is_ok:
+        log.info({
+            "event":"SCOPE_CREATED",
+            "scope_name":dto.name
+        })
         return response.unwrap()
     e = response.unwrap_err()
+    log.error({
+        "event":"SCOPE_CREATION_FAILED",
+        "reason":e.detail
+    })
     raise HTTPException(detail=e.detail, status_code=e.status_code)
 
 @router.post("/assign")
@@ -44,6 +53,17 @@ async def assign_scope(
 ):
     response = await scopes_service.assign(dto = dto)
     if response.is_ok:
+        log.info({
+            "event":"SCOPE_ASSIGNED",
+            "scope_id":dto.name,
+            "username":dto.username
+        })
         return response.unwrap()
     e = response.unwrap_err()
+    log.error({
+        "event":"SCOPE_ASSIGN_FAILED",
+        "scope_id":dto.name,
+        "username":dto.username,
+        "reason":e.detail
+    })
     raise HTTPException(detail=e.detail, status_code=e.status_code)

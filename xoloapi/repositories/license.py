@@ -1,15 +1,16 @@
 # xoloapi/repositories/license.py
 from motor.motor_asyncio import AsyncIOMotorCollection
-import xoloapi.errors as EX
 import option as OP
-import xoloapi.models as M
+# 
+import commonx.models.xolo as M
+import commonx.errors as EX
 
 class LicensesRepository(object):
     
     def __init__(self, collection:AsyncIOMotorCollection):
         self.collection = collection
 
-    async def create(self, username:str, license:str, scope:str,expires_at:str)->OP.Result[bool, EX.XoloError]:
+    async def create(self, username:str, license:str, scope:str,expires_at:str)->OP.Result[bool, EX.XError]:
         try:
             model = M.LicenseAssignedModel(
                 username=username,
@@ -20,24 +21,24 @@ class LicensesRepository(object):
             result = await self.collection.insert_one(document=model.model_dump())
             return OP.Ok(True)
         except Exception as e:
-            return OP.Err(EX.ServerError(message=str(e)))
+            return OP.Err(EX.ServerError(raw_detail=str(e)))
     
-    async def find_by_username_and_scope(self,username:str, scope:str)->OP.Result[str, EX.XoloError]:
+    async def find_by_username_and_scope(self,username:str, scope:str)->OP.Result[str, EX.XError]:
         try:
             doc = await self.collection.find_one({"username":username, "scope":scope.strip().upper()})
             if doc == None:
-                return OP.Err(EX.NotFound(entity="License"))
+                return OP.Err(EX.NotFound(metadata = {"entity":"License"}))
             return OP.Ok(doc.get("license"))
         except Exception as e:
-            return OP.Err(EX.ServerError(message=str(e)))
+            return OP.Err(EX.ServerError(raw_detail=str(e)))
         
-    async def delete_by_username_scope(self,username:str, scope:str)->OP.Result[bool, EX.XoloError]:
+    async def delete_by_username_scope(self,username:str, scope:str)->OP.Result[bool, EX.XError]:
         try:
             result = await self.collection.delete_one({"username":username, "scope":scope.strip().upper()})
             if result.deleted_count>0:
                 return OP.Ok(True)
-            return OP.Err(EX.NotFound(entity="License"))
+            return OP.Err(EX.NotFound(metadata = {"entity":"License"}))
         except Exception as e:
-            return OP.Err(EX.ServerError(message=str(e)))
+            return OP.Err(EX.ServerError(raw_detail=str(e)))
 
             
