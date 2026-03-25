@@ -6,4 +6,6 @@ src/__pycache__/
 **/*.json
 scripts/out
 **/__pycache__/
-
+**/log/*
+.coverage
+log/*

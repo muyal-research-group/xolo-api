@@ -1,7 +1,16 @@
 # xoloapi/dto/user.py
 from typing import Dict,Optional
 from pydantic import BaseModel
-    
+
+class LogoutDTO(BaseModel):
+    access_token:str
+    username:str
+
+
+class EnableOrDisableUserDTO(BaseModel):
+    username:str
+
+
 class CreateUserDTO(BaseModel):
     username:str
     first_name:str
@@ -9,7 +18,6 @@ class CreateUserDTO(BaseModel):
     email:str
     password:str
     profile_photo:str=""
-    role:str="user"
 
 class DeleteLicenseDTO(BaseModel):
     username:str
@@ -60,6 +68,8 @@ class AuthDTO(BaseModel):
     username:str
     password:str
     scope: Optional[str] = "Xolo"
+    expiration: Optional[str] = "15min",
+    renew_token: Optional[bool] = False
 
 
     
@@ -77,4 +87,17 @@ class AuthenticatedDTO(BaseModel):
     access_token:str
     metadata:Dict[str,str]
     temporal_secret:str
-    role:str
+    user_id: Optional[str]=None
+
+class UserDTO(BaseModel):
+    key:str 
+    username:str
+    first_name:str
+    last_name:str
+    email:str
+    profile_photo:str
+    disabled:Optional[bool]=False
+
+class CreateGroupDTO(BaseModel):
+    name:str
+    description:Optional[str]=""
