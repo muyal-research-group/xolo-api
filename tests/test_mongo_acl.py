@@ -10,6 +10,8 @@ from typing import AsyncGenerator
 
 from xoloapi.db.constants import CollectionNames
 
+ACCOUNT_ID = "acc-acl"
+
 # --- 1. THE SETUP (Async Fixtures) ---
 
 @pytest_asyncio.fixture
@@ -31,14 +33,17 @@ async def acl_service()->AsyncGenerator[XoloACL, None]:
                     CollectionNames.GROUPS_COLLECTION_NAME,
                     CollectionNames.GROUP_MEMBERS_COLLECTION_NAME,
                     CollectionNames.ACCESS_POLICIES_COLLECTION_NAME,
-                    CollectionNames.SECURITY_GROUPS_COLLECTION_NAME
+                    CollectionNames.SECURITY_GROUPS_COLLECTION_NAME,
+                    CollectionNames.ACL_RESOURCE_POLICIES_COLLECTION_NAME,
+                    CollectionNames.ACL_GROUPS_COLLECTION_NAME,
+                    CollectionNames.ACL_GROUP_MEMBERS_COLLECTION_NAME,
                     ]:
         await db.drop_collection(col_name)
 
     # for coll_name in await db.list_collection_names():
         # await db.drop_collection(coll_name)
 
-    service = XoloACL(db)
+    service = XoloACL(db, account_id=ACCOUNT_ID)
     
     yield service
     
@@ -69,8 +74,28 @@ async def test_claim_and_check_ownership(acl_service: XoloACL):
     saved_policy = await acl_service.policies.find_one({"resource_id": bucket_id})
     print(saved_policy)
     assert saved_policy is not None
-    assert saved_policy["principal_id"] == user_id
-    assert saved_policy["is_owner"] is True
+    assert any(grant["principal_id"] == user_id and grant["is_owner"] is True for grant in saved_policy["grants"])
+
+
+@pytest.mark.asyncio
+async def test_account_isolation_for_same_resource_id():
+    client = AsyncIOMotorClient("mongodb://localhost:27018")
+    db = client["xolo_test_db"]
+    await db.drop_collection(CollectionNames.ACL_RESOURCE_POLICIES_COLLECTION_NAME)
+    await db.drop_collection(CollectionNames.ACL_GROUPS_COLLECTION_NAME)
+    await db.drop_collection(CollectionNames.ACL_GROUP_MEMBERS_COLLECTION_NAME)
+
+    acc_one = XoloACL(db, account_id="acc-one")
+    acc_two = XoloACL(db, account_id="acc-two")
+
+    await acc_one.claim_resource("u_alice", "shared-resource")
+    await acc_two.claim_resource("u_bob", "shared-resource")
+
+    assert await acc_one.check("u_alice", "shared-resource", [Permission.MANAGE]) is True
+    assert await acc_one.check("u_bob", "shared-resource", [Permission.MANAGE]) is False
+    assert await acc_two.check("u_bob", "shared-resource", [Permission.MANAGE]) is True
+
+    client.close()
 
 
 
@@ -92,7 +117,7 @@ async def test_anti_theft_prevention(acl_service:XoloACL):
     
     # 4. Verify Ignacio is still the owner
     policy = await acl_service.policies.find_one({"resource_id": "bucket-secret-plans"})
-    assert policy["principal_id"] == "u_ignacio"
+    assert any(grant["principal_id"] == "u_ignacio" and grant["is_owner"] is True for grant in policy["grants"])
 
 
 @pytest.mark.asyncio

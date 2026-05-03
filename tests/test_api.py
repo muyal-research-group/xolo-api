@@ -1,7 +1,10 @@
 import pytest
 import httpx
 from xolo.abac.models import AccessRequest,AttributeComponent
-# @pytest.mark.skip("")
+
+
+
+@pytest.mark.skip(reason="Requires an external localhost server and real auth/config; not part of the in-process test suite.")
 @pytest.mark.asyncio
 async def test_evaluate_batch():
     res = httpx.post(url="http://localhost:10000/api/v4/policies/evaluate/batch",json=

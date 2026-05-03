@@ -8,6 +8,33 @@ from xoloapi.db.constants import CollectionNames
 import xoloapi.dto as DTO   
 import xoloapi.middleware as MX
 from motor.motor_asyncio import AsyncIOMotorClient
+from option import Ok
+from starlette.requests import Request
+
+from xoloapi.users.infrastructure.mongo_password_reset_repository import MongoPasswordResetRepository
+
+
+class _RecordingUsersMailer:
+    async def send_password_reset_email(
+        self,
+        *,
+        recipient_email: str,
+        recipient_name: str,
+        reset_token: str,
+        reset_url: str | None,
+        expires_in: str,
+    ):
+        return Ok(True)
+
+    async def send_welcome_email(
+        self,
+        *,
+        recipient_email: str,
+        recipient_name: str,
+        username: str,
+        scope: str,
+    ):
+        return Ok(True)
 
 
 @pytest_asyncio.fixture
@@ -49,11 +76,16 @@ async def user_service():
         scopes_repository =RX.ScopesRepository(
             collection= db[CollectionNames.SCOPES_COLLECTION_NAME],
             scope_user_collection= db[CollectionNames.SCOPE_USER_COLLECTION_NAME]
-        )
+        ),
+        password_reset_repository=MongoPasswordResetRepository(
+            collection=db[CollectionNames.PASSWORD_RESET_TOKENS_COLLECTION_NAME],
+        ),
+        users_mailer=_RecordingUsersMailer(),
     )
     yield service
 
     # C. Cleanup
+    await CacheX.close_redis_connection()
     client.close()
 
 @pytest_asyncio.fixture
@@ -73,7 +105,10 @@ async def scope_service():
         repository = RX.ScopesRepository( 
             collection = scopes_collection,
             scope_user_collection= scope_user_collection
-        )
+        ),
+        licenses_repository = RX.LicensesRepository(
+            collection = db[CollectionNames.LICENSES_COLLECTION_NAME]
+        ),
     )
     yield service
 
@@ -113,6 +148,7 @@ async def test_main_logic(
     scope_service: SX.ScopesService,
     license_service: SX.LicensesService
 ):
+    account_id = "acc-test"
     user_data = DTO.CreateUserDTO(
         username="testuser",
         first_name="Test",
@@ -123,7 +159,7 @@ async def test_main_logic(
     )
     scope_name = "testscope"
 
-    created_user_result = await user_service.create_user(user_data)
+    created_user_result = await user_service.create_user(account_id, user_data)
     assert created_user_result.is_ok , f"User creation failed: {created_user_result.unwrap_err()}"
     user_id = created_user_result.unwrap().key
     user = await user_service.get_by_id(user_id=user_id)
@@ -136,10 +172,11 @@ async def test_main_logic(
     scope_dto = DTO.CreateScopeDTO(
         name=scope_name
     )
-    created_scope_result = await scope_service.create(scope_dto)
+    created_scope_result = await scope_service.create(account_id, scope_dto)
     assert created_scope_result.is_ok, f"Scope creation failed: {created_scope_result.unwrap_err()}"
 
     assigned_scope_result = await scope_service.assign(
+        account_id=account_id,
         dto = DTO.AssignScopeDTO(
             name=scope_name,
             username=user_data.username
@@ -148,6 +185,7 @@ async def test_main_logic(
     assert assigned_scope_result.is_ok, f"Assigning scope failed: {assigned_scope_result.unwrap_err()}"
 
     create_license_result = await license_service.assign_license(
+        account_id=account_id,
         dto = DTO.AssignLicenseDTO(
             username   = user_data.username,
             scope      = scope_name,
@@ -157,6 +195,7 @@ async def test_main_logic(
     assert create_license_result.is_ok, f"Creating license failed: {create_license_result.unwrap_err()}"
 
     x = await user_service.auth(
+        account_id=account_id,
         dto = DTO.AuthDTO(
             username = user_data.username,
             password = user_data.password,
@@ -168,7 +207,9 @@ async def test_main_logic(
     access_token = auth_data.access_token
     # auth_data.temporal_secret
     
+    request = Request({"type": "http", "headers": [], "path_params": {"account_id": account_id}})
     is_authenticated = await MX.__get_current_user(
+        request             = request,
         token               = access_token,
         temporal_secret_key = auth_data.temporal_secret,
         users_service       = user_service
