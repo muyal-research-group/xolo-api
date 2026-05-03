@@ -1,8 +1,10 @@
 # 
+import time as T
+#
 from xolo.log import Log
 # 
 from xoloapi.db import connect_to_mongo,close_mongo_connection
-from xoloapi.controllers import licenses_router,scopes_router,users_router,policies_router,acl_router
+from xoloapi.controllers import accounts_router,licenses_router,scopes_router,users_router,policies_router,acl_router,abac_router,ngac_router,apikeys_router,rbac_router,admin_ui_router
 # 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -10,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from xoloapi.db.cache import connect_to_redis, close_redis_connection
 import xoloapi.config  as Cfg
+from xoloapi.logging import build_log_payload
 
 log            = Log(
         name                   = Cfg.XOLO_LOG_NAME,
@@ -25,11 +28,19 @@ log            = Log(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await connect_to_mongo()
-    await connect_to_redis()
-    yield 
-    await close_mongo_connection()
-    await close_redis_connection()
+    startup_time = T.time()
+    log.info(build_log_payload("runtime.app.starting"))
+    try:
+        await connect_to_mongo()
+        await connect_to_redis()
+        log.info(build_log_payload("runtime.app.started", started_at=startup_time))
+        yield
+    finally:
+        shutdown_time = T.time()
+        log.info(build_log_payload("runtime.app.stopping"))
+        await close_mongo_connection()
+        await close_redis_connection()
+        log.info(build_log_payload("runtime.app.stopped", started_at=shutdown_time))
 
 
 app = FastAPI(
@@ -67,14 +78,17 @@ def generate_openapi():
     return app.openapi_schema
 app.openapi = generate_openapi
 
+app.include_router(accounts_router,prefix="/api/v4",tags=["accounts"])
 app.include_router(users_router,prefix="/api/v4",tags=["users"])
 app.include_router(licenses_router,prefix="/api/v4",tags=["licenses"])
 app.include_router(scopes_router,prefix="/api/v4",tags=["scopes"])
 app.include_router(policies_router,prefix="/api/v4",tags=["policies"])
-app.include_router(acl_router,prefix="/api/v4",tags=["acl"])       
-
-
-
+app.include_router(acl_router,prefix="/api/v4",tags=["acl"])
+app.include_router(abac_router,    prefix="/api/v4", tags=["abac"])
+app.include_router(ngac_router,    prefix="/api/v4", tags=["ngac"])
+app.include_router(apikeys_router, prefix="/api/v4", tags=["apikeys"])
+app.include_router(rbac_router,    prefix="/api/v4", tags=["rbac"])
+app.include_router(admin_ui_router)
 
 
 

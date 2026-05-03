@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Licenses</h1>
+            <p class="mt-2 text-sm text-slate-500">Assign licenses, review active entries, and delete them when needed.</p>
+        </div>
+        <form method="get" action="{{ request.url_for('admin_licenses_page') }}" class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <label class="block">
+                <span class="mb-2 block text-sm font-medium text-slate-700">Account ID</span>
+                <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="account_id" value="{{ current_account_id }}" placeholder="acc-main">
+            </label>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700">Load account</button>
+        </form>
+    </div>
+</section>
+
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <form method="post" action="{{ request.url_for('admin_create_license') }}" class="grid gap-4 md:grid-cols-2">
+        <label class="block md:col-span-2">
+            <span class="mb-2 block text-sm font-medium text-slate-700">Account ID</span>
+            <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="account_id" value="{{ current_account_id }}" required>
+        </label>
+        <label class="block">
+            <span class="mb-2 block text-sm font-medium text-slate-700">Username</span>
+            <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="username" required>
+        </label>
+        <label class="block">
+            <span class="mb-2 block text-sm font-medium text-slate-700">Scope</span>
+            <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="scope" required>
+        </label>
+        <label class="block">
+            <span class="mb-2 block text-sm font-medium text-slate-700">Expires in</span>
+            <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="expires_in" value="15m" required>
+        </label>
+        <label class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            <input class="h-4 w-4 rounded border-slate-300 text-xolo-600 focus:ring-xolo-500" type="checkbox" name="force" checked>
+            <span>Force replacement if a license already exists</span>
+        </label>
+        <div class="md:col-span-2">
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-xolo-700">Assign license</button>
+        </div>
+    </form>
+</section>
+
+{% if license_result %}
+<section class="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">License result</h2>
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+            <tr><th>Account</th><td>{{ current_account_id }}</td></tr>
+            <tr><th>Expires at</th><td>{{ license_result.expires_at }}</td></tr>
+            <tr><th>Created</th><td>{{ "yes" if license_result.ok else "no" }}</td></tr>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Existing licenses</h2>
+    {% if current_account_id %}
+    <p class="mt-2 text-sm text-slate-500">Showing licenses for account <span class="font-semibold text-slate-900">{{ current_account_id }}</span>.</p>
+    {% else %}
+    <p class="mt-2 text-sm text-slate-500">Enter an account ID above to view account-owned licenses.</p>
+    {% endif %}
+    {% if licenses %}
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+            <tr><th>Account</th><th>Username</th><th>Scope</th><th>Expires at</th><th>Action</th></tr>
+            {% for license in licenses %}
+            <tr class="border-t border-slate-200">
+                <td>{{ current_account_id }}</td>
+                <td>{{ license.username }}</td>
+                <td>{{ license.scope }}</td>
+                <td>{{ license.expires_at }}</td>
+                <td>
+                    <form method="post" action="{{ request.url_for('admin_delete_license') }}">
+                        <input type="hidden" name="account_id" value="{{ current_account_id }}">
+                        <input type="hidden" name="username" value="{{ license.username }}">
+                        <input type="hidden" name="scope" value="{{ license.scope }}">
+                        <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% elif current_account_id %}
+    <p class="mt-4 text-sm text-slate-500">No licenses yet for this account.</p>
+    {% endif %}
+</section>
+{% endblock %}

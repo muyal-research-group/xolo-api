@@ -1,7 +1,9 @@
 import os
 
 class CollectionNames: 
+    ACCOUNTS_COLLECTION_NAME: str = os.environ.get("XOLO_ACCOUNTS_COLLECTION_NAME", "accounts")
     USERS_COLLECTION_NAME: str = os.environ.get("XOLO_USERS_COLLECTION_NAME", "users")
+    PASSWORD_RESET_TOKENS_COLLECTION_NAME: str = os.environ.get("XOLO_PASSWORD_RESET_TOKENS_COLLECTION_NAME", "password_reset_tokens")
     CREDENTIALS_COLLECTION_NAME: str = os.environ.get("XOLO_CREDENTIALS_COLLECTION_NAME", "credentials")
     LICENSES_COLLECTION_NAME: str = os.environ.get("XOLO_LICENSES_COLLECTION_NAME", "licenses")
     SCOPES_COLLECTION_NAME: str = os.environ.get("XOLO_SCOPES_COLLECTION_NAME", "scopes")
@@ -10,4 +12,13 @@ class CollectionNames:
     GROUP_MEMBERS_COLLECTION_NAME: str = os.environ.get("XOLO_GROUP_MEMBERS_COLLECTION_NAME", "group_members")
     ACCESS_POLICIES_COLLECTION_NAME: str = os.environ.get("XOLO_ACCESS_POLICIES_COLLECTION_NAME", "access_policies")
     SECURITY_GROUPS_COLLECTION_NAME: str = os.environ.get("XOLO_SECURITY_GROUPS_COLLECTION_NAME", "security_groups")
-    
+    API_KEYS_COLLECTION_NAME:             str = os.environ.get("XOLO_API_KEYS_COLLECTION_NAME",             "api_keys")
+    ACL_RESOURCE_POLICIES_COLLECTION_NAME: str = os.environ.get("XOLO_ACL_RESOURCE_POLICIES_COLLECTION_NAME", "acl_resource_policies")
+    ACL_GROUPS_COLLECTION_NAME:            str = os.environ.get("XOLO_ACL_GROUPS_COLLECTION_NAME",            "acl_groups")
+    ACL_GROUP_MEMBERS_COLLECTION_NAME:     str = os.environ.get("XOLO_ACL_GROUP_MEMBERS_COLLECTION_NAME",     "acl_group_members")
+    ABAC_POLICIES_COLLECTION_NAME:         str = os.environ.get("XOLO_ABAC_COLLECTION_NAME",                "abac_policies")
+    NGAC_NODES_COLLECTION_NAME:            str = os.environ.get("XOLO_NGAC_NODES_COLLECTION",               "ngac_nodes")
+    NGAC_ASSIGNMENTS_COLLECTION_NAME:      str = os.environ.get("XOLO_NGAC_ASSIGNMENTS_COLLECTION",         "ngac_assignments")
+    NGAC_ASSOCIATIONS_COLLECTION_NAME:     str = os.environ.get("XOLO_NGAC_ASSOCIATIONS_COLLECTION",        "ngac_associations")
+    RBAC_ROLES_COLLECTION_NAME:            str = os.environ.get("XOLO_RBAC_ROLES_COLLECTION_NAME",          "rbac_roles")
+    RBAC_ASSIGNMENTS_COLLECTION_NAME:      str = os.environ.get("XOLO_RBAC_ASSIGNMENTS_COLLECTION_NAME",    "rbac_assignments")

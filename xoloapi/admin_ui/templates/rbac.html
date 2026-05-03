@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="mb-6">
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">RBAC</h1>
+        <p class="mt-2 text-sm text-slate-500">Manage roles, permissions, parent roles, and subject assignments.</p>
+    </div>
+    <div class="grid gap-5 xl:grid-cols-2">
+        <form method="post" action="{{ request.url_for('admin_create_rbac_role') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Create role</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="name" placeholder="Role name" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="description" placeholder="Description">
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="permissions" placeholder="resource:action,other:permission">
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Create role</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_update_rbac_role') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Update role</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="role_id" placeholder="Role id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="name" placeholder="New role name">
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="description" placeholder="New description">
+            <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white">Update role</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_add_rbac_permission') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Add permission</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="role_id" placeholder="Role id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="permission" placeholder="resource:action" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Add permission</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_remove_rbac_permission') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Remove permission</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="role_id" placeholder="Role id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="permission" placeholder="resource:action" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white">Remove permission</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_add_rbac_parent') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Add parent role</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="role_id" placeholder="Role id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="parent_role_id" placeholder="Parent role id" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Add parent</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_remove_rbac_parent') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Remove parent role</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="role_id" placeholder="Role id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="parent_role_id" placeholder="Parent role id" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white">Remove parent</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_assign_rbac_role') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Assign role</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="subject_id" placeholder="Subject id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="role_id" placeholder="Role id" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Assign role</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_unassign_rbac_role') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Unassign role</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="subject_id" placeholder="Subject id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="role_id" placeholder="Role id" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white">Unassign role</button>
+        </form>
+    </div>
+</section>
+
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Roles</h2>
+    {% if roles %}
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+            <tr><th>Role</th><th>Description</th><th>Permissions</th><th>Parents</th><th>Action</th></tr>
+            {% for role in roles %}
+            <tr class="border-t border-slate-200">
+                <td>{{ role.name }}<div class="text-xs text-slate-500">{{ role.role_id }}</div></td>
+                <td>{{ role.description or "—" }}</td>
+                <td>{{ role.permissions | join(", ") if role.permissions else "—" }}</td>
+                <td>{{ role.parent_role_ids | join(", ") if role.parent_role_ids else "—" }}</td>
+                <td>
+                    <form method="post" action="{{ request.url_for('admin_delete_rbac_role') }}">
+                        <input type="hidden" name="role_id" value="{{ role.role_id }}">
+                        <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <p class="mt-4 text-sm text-slate-500">No RBAC roles yet.</p>
+    {% endif %}
+</section>
+
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Assignments</h2>
+    {% if assignments %}
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+            <tr><th>Assignment</th><th>Subject</th><th>Role</th></tr>
+            {% for assignment in assignments %}
+            <tr class="border-t border-slate-200">
+                <td>{{ assignment.assignment_id }}</td>
+                <td>{{ assignment.subject_id }}</td>
+                <td>{{ assignment.role_id }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <p class="mt-4 text-sm text-slate-500">No RBAC assignments yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

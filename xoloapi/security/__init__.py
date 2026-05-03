@@ -12,7 +12,8 @@ class Security:
     ACCESS_TOKEN_EXPIRE_MINUTES:str =int(os.environ.get("XOLO_JWT_EXPIRE_MINUTES",15))
     SECRET_KEY:str =os.environ.get("XOLO_JWT_SECRET")
     ALGORITHM:str =os.environ.get("XOLO_JWT_ALGORITHM","HS256")
-    API_KEY:str = os.environ.get("XOLO_API_KEY")
+    LEGACY_API_KEY:str = os.environ.get("XOLO_LEGACY_API_KEY") or os.environ.get("XOLO_API_KEY")
+    API_KEY:str = LEGACY_API_KEY
     
     @staticmethod
     async def hash_value(value: str) -> str:

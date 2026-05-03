@@ -1,8 +1,21 @@
 # xoloapi/errors/__init__.py
-from abc import ABC,abstractmethod
-from typing import Optional,Dict,Any
+from abc import ABC, abstractmethod
+from typing import Optional, Dict, Any
 from pydantic import BaseModel
-from commonx.errors import * 
+from commonx.errors import *
+from xoloapi.errors.base import (
+    ErrorDetail,
+    XoloException,
+    NotFoundError,
+    AlreadyExistsError,
+    ConflictError,
+    UnauthorizedError,
+    AccessDeniedError,
+    InactiveUserError,
+    ValidationError,
+    DatabaseError,
+    InternalError,
+)
 
 # ERROR_CODES = {
 #     "XOLO.UNKNOWN": -1,

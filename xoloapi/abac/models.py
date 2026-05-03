@@ -1,0 +1,29 @@
+from pydantic import BaseModel
+
+from xoloapi.abac.domain.value_objects import Effect
+
+
+class _CompatModel(BaseModel):
+    def __getitem__(self, key: str):
+        return getattr(self, key)
+
+
+class ABACEventRecord(_CompatModel):
+    event_id: str
+    subject: str
+    resource: str
+    location: str = "*"
+    time_start: str | None = None
+    time_end: str | None = None
+    action: str
+
+
+class ABACPolicyRecord(_CompatModel):
+    account_id: str
+    policy_id: str
+    name: str
+    effect: Effect
+    events: list[ABACEventRecord]
+
+
+__all__ = ["ABACEventRecord", "ABACPolicyRecord"]

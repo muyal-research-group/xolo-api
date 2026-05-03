@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="mb-6">
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">NGAC</h1>
+        <p class="mt-2 text-sm text-slate-500">Manage nodes, assignments, associations, and access checks.</p>
+    </div>
+    <div class="grid gap-5 xl:grid-cols-2">
+        <form method="post" action="{{ request.url_for('admin_create_ngac_node') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Create node</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="name" placeholder="Node name" required>
+            <select class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" name="node_type" required>
+                {% for node_type in node_types %}
+                <option value="{{ node_type.value }}">{{ node_type.value }}</option>
+                {% endfor %}
+            </select>
+            <textarea class="block min-h-28 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" name="properties_json" placeholder='{"department":"ops"}'></textarea>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Create node</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_add_ngac_assignment') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Create assignment</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="from_id" placeholder="From node id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="to_id" placeholder="To node id" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Create assignment</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_remove_ngac_assignment') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Remove assignment</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="from_id" placeholder="From node id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="to_id" placeholder="To node id" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white">Remove assignment</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_add_ngac_association') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Create association</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="user_attribute_id" placeholder="User attribute id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="object_attribute_id" placeholder="Object attribute id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="operations" placeholder="read,write" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Create association</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_remove_ngac_association') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Remove association</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="association_id" placeholder="Association id" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white">Remove association</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_check_ngac_access') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Check access</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="user_id" placeholder="User node id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="object_id" placeholder="Object node id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="operation" placeholder="Operation" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Check access</button>
+        </form>
+    </div>
+    {% if access_decision %}
+    <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+        <div><strong>Allowed:</strong> {{ "yes" if access_decision.allowed else "no" }}</div>
+        <div><strong>Reason:</strong> {{ access_decision.reason }}</div>
+    </div>
+    {% endif %}
+</section>
+
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Nodes</h2>
+    {% if nodes %}
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+            <tr><th>Node</th><th>Type</th><th>Properties</th><th>Action</th></tr>
+            {% for node in nodes %}
+            <tr class="border-t border-slate-200">
+                <td>{{ node.name }}<div class="text-xs text-slate-500">{{ node.node_id }}</div></td>
+                <td>{{ node.node_type.value }}</td>
+                <td>{{ node.properties or {} }}</td>
+                <td>
+                    <form method="post" action="{{ request.url_for('admin_delete_ngac_node') }}">
+                        <input type="hidden" name="node_id" value="{{ node.node_id }}">
+                        <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <p class="mt-4 text-sm text-slate-500">No NGAC nodes yet.</p>
+    {% endif %}
+</section>
+
+<section class="grid gap-5 xl:grid-cols-2">
+    <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Assignments</h2>
+        {% if assignments %}
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+                <tr><th>Assignment</th><th>From</th><th>To</th></tr>
+                {% for assignment in assignments %}
+                <tr class="border-t border-slate-200">
+                    <td>{{ assignment.assignment_id }}</td>
+                    <td>{{ assignment.from_id }}</td>
+                    <td>{{ assignment.to_id }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% else %}
+        <p class="mt-4 text-sm text-slate-500">No NGAC assignments yet.</p>
+        {% endif %}
+    </article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Associations</h2>
+        {% if associations %}
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+                <tr><th>Association</th><th>User attribute</th><th>Object attribute</th><th>Ops</th></tr>
+                {% for association in associations %}
+                <tr class="border-t border-slate-200">
+                    <td>{{ association.association_id }}</td>
+                    <td>{{ association.user_attribute_id }}</td>
+                    <td>{{ association.object_attribute_id }}</td>
+                    <td>{{ association.operations | join(", ") }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% else %}
+        <p class="mt-4 text-sm text-slate-500">No NGAC associations yet.</p>
+        {% endif %}
+    </article>
+</section>
+{% endblock %}

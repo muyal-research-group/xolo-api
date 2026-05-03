@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold tracking-tight text-slate-900">API Keys</h1>
+            <p class="mt-2 text-sm text-slate-500">Create a key and store the raw value immediately. It is only shown once.</p>
+        </div>
+        <form method="get" action="{{ request.url_for('admin_apikeys_page') }}" class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <label class="block">
+                <span class="mb-2 block text-sm font-medium text-slate-700">Account ID</span>
+                <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="account_id" value="{{ current_account_id }}" placeholder="acc-main">
+            </label>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700">Load account</button>
+        </form>
+    </div>
+</section>
+
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <form method="post" action="{{ request.url_for('admin_create_apikey') }}" class="space-y-4">
+        <label class="block">
+            <span class="mb-2 block text-sm font-medium text-slate-700">Account ID</span>
+            <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="account_id" value="{{ current_account_id }}" required>
+        </label>
+        <label class="block">
+            <span class="mb-2 block text-sm font-medium text-slate-700">Key name</span>
+            <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="name" required>
+        </label>
+        <div>
+            <div class="mb-2 block text-sm font-medium text-slate-700">Scopes</div>
+            <div class="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                {% for scope in available_scopes %}
+                <label class="flex items-center gap-3 rounded-lg px-2 py-1 text-sm text-slate-700">
+                    <input class="h-4 w-4 rounded border-slate-300 text-xolo-600 focus:ring-xolo-500" type="checkbox" name="scopes" value="{{ scope.value }}">
+                    <span>{{ scope.value }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        <label class="block">
+            <span class="mb-2 block text-sm font-medium text-slate-700">Expiration (optional ISO datetime)</span>
+            <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="expires_at" placeholder="2026-05-03T18:00:00+00:00">
+        </label>
+        <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-xolo-700">Create API key</button>
+    </form>
+</section>
+
+{% if created_key %}
+<section class="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Store this API key now</h2>
+    <p class="mt-2 text-sm text-slate-600">This raw key will not be shown again.</p>
+    <div class="mt-4 overflow-x-auto rounded-xl bg-slate-900 px-4 py-3 font-mono text-sm text-slate-100">{{ created_key.key }}</div>
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+            <tr><th>Account</th><td>{{ created_key.account_id }}</td></tr>
+            <tr><th>Key ID</th><td>{{ created_key.key_id }}</td></tr>
+            <tr><th>Name</th><td>{{ created_key.name }}</td></tr>
+            <tr><th>Prefix</th><td>{{ created_key.key_prefix }}</td></tr>
+            <tr><th>Scopes</th><td>{{ created_key.scopes | join(", ") }}</td></tr>
+            <tr><th>Expires at</th><td>{{ created_key.expires_at or "—" }}</td></tr>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Stored API key metadata</h2>
+    {% if current_account_id %}
+    <p class="mt-2 text-sm text-slate-500">Showing keys for account <span class="font-semibold text-slate-900">{{ current_account_id }}</span>.</p>
+    {% else %}
+    <p class="mt-2 text-sm text-slate-500">Enter an account ID above to view account-owned keys.</p>
+    {% endif %}
+    {% if keys %}
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+            <thead>
+                <tr>
+                    <th>Account</th>
+                    <th>Name</th>
+                    <th>Key ID</th>
+                    <th>Prefix</th>
+                    <th>Scopes</th>
+                    <th>Active</th>
+                    <th>Expires</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for key in keys %}
+                <tr class="border-t border-slate-200">
+                    <td>{{ key.account_id }}</td>
+                    <td>{{ key.name }}</td>
+                    <td>{{ key.key_id }}</td>
+                    <td>{{ key.key_prefix }}</td>
+                    <td>{% for scope in key.scopes %}{{ scope.value if scope.value is defined else scope }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                    <td>{{ "yes" if key.is_active else "no" }}</td>
+                    <td>{{ key.expires_at or "—" }}</td>
+                    <td>
+                        <form method="post" action="{{ request.url_for('admin_delete_apikey') }}">
+                            <input type="hidden" name="account_id" value="{{ current_account_id }}">
+                            <input type="hidden" name="key_id" value="{{ key.key_id }}">
+                            <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif current_account_id %}
+    <p class="mt-4 text-sm text-slate-500">No API Keys stored yet for this account.</p>
+    {% endif %}
+</section>
+{% endblock %}
