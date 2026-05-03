@@ -1,0 +1,59 @@
+[project]
+site_name = "Xolo API"
+site_description = "Identity and Access Management API for the Xolo platform"
+site_author = "Muyal Research Group"
+site_url = "https://muyal-research-group.github.io/xolo-api/"
+copyright = """
+Copyright &copy; 2026 Muyal Research Group
+"""
+nav = [
+  { Home = "index.md" },
+  { "Getting started" = "getting-started.md" },
+  { Concepts = [
+      { "Authentication and admin" = "authentication-and-admin.md" },
+      { "Access control models" = "access-control.md" },
+    ]
+  },
+  { Architecture = [
+      { "Architecture overview" = "architecture.md" },
+      { "Project structure" = "project-structure.md" },
+    ]
+  },
+  { Operations = [
+      { Configuration = "configuration.md" },
+      { Deployment = "deployment.md" },
+    ]
+  },
+  { Contributing = "contributing.md" },
+]
+
+[project.theme]
+language = "en"
+features = [
+  "content.action.edit",
+  "content.code.copy",
+  "navigation.expand",
+  "navigation.sections",
+  "navigation.top",
+]
+logo = "assets/logo.png"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/muyal-research-group/xolo-api"
+
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.footnotes]
+[project.markdown_extensions.tables]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.superfences]
+[project.markdown_extensions.pymdownx.highlight]
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
