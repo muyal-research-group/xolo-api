@@ -11,3 +11,10 @@ scripts/out
 log/*
 *.lock
 .env.prod
+.claude
+CLAUDE.md
+idea.md
+site/
+.cach
+.pytest_cache/
+log/
