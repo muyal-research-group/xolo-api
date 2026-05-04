@@ -15,6 +15,18 @@ async def login_admin(client):
     assert response.headers["location"] == "http://test/admin"
 
 
+async def select_account(client, account_id: str = ACCOUNT_ID):
+    """Select an account in the admin session."""
+    response = await client.post(
+        "/admin/account",
+        data={"account_id": account_id},
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    assert "Active account set to" in response.text or f"'{account_id}'" in response.text
+    return response
+
+
 async def create_account(client, account_id: str = ACCOUNT_ID, name: str = "UI Account"):
     response = await client.post(
         "/admin/accounts",
@@ -41,7 +53,7 @@ async def test_admin_login_gate_and_logout(admin_ui_client):
 
     await login_admin(admin_ui_client)
 
-    dashboard = await admin_ui_client.get("/admin?account_id=acc-ui")
+    dashboard = await admin_ui_client.get("/admin")
     assert dashboard.status_code == 200
     assert "Admin panel" in dashboard.text
     assert "Current account:" in dashboard.text
@@ -80,30 +92,33 @@ async def test_admin_can_create_list_and_delete_accounts(admin_ui_client):
 async def test_admin_shows_error_for_unknown_account_selection(admin_ui_client):
     await login_admin(admin_ui_client)
 
-    page_res = await admin_ui_client.get("/admin/users?account_id=missing-account")
+    page_res = await admin_ui_client.post(
+        "/admin/account",
+        data={"account_id": "missing-account"},
+        follow_redirects=True,
+    )
     assert page_res.status_code == 200
-    assert "Account not found" in page_res.text
-    assert "missing-account" in page_res.text
+    assert "Account not found" in page_res.text or "not found" in page_res.text
 
 
 @pytest.mark.asyncio
 async def test_admin_can_create_api_key_and_raw_key_is_one_time(admin_ui_client):
     await login_admin(admin_ui_client)
+    await select_account(admin_ui_client)
 
     create_res = await admin_ui_client.post(
         "/admin/apikeys",
-        data={"account_id": ACCOUNT_ID, "name": "ops-admin", "scopes": ["users", "licenses"]},
+        data={"name": "ops-admin", "scopes": ["users", "licenses"]},
     )
     assert create_res.status_code == 200
     assert "Store this API key now" in create_res.text
-    assert ACCOUNT_ID in create_res.text
     assert "ops-admin" in create_res.text
 
     raw_key_match = re.search(r"XOLO_[A-Z0-9_-]+", create_res.text)
     assert raw_key_match is not None
     raw_key = raw_key_match.group(0)
 
-    list_res = await admin_ui_client.get(f"/admin/apikeys?account_id={ACCOUNT_ID}")
+    list_res = await admin_ui_client.get("/admin/apikeys")
     assert list_res.status_code == 200
     assert "Showing keys for account" in list_res.text
     assert "ops-admin" in list_res.text
@@ -114,7 +129,7 @@ async def test_admin_can_create_api_key_and_raw_key_is_one_time(admin_ui_client)
     assert key_id_match is not None
     delete_res = await admin_ui_client.post(
         "/admin/apikeys/delete",
-        data={"account_id": ACCOUNT_ID, "key_id": key_id_match.group(1)},
+        data={"key_id": key_id_match.group(1)},
     )
     assert delete_res.status_code == 200
     assert "deleted" in delete_res.text
@@ -124,21 +139,20 @@ async def test_admin_can_create_api_key_and_raw_key_is_one_time(admin_ui_client)
 @pytest.mark.asyncio
 async def test_admin_can_manage_scopes_users_and_licenses(admin_ui_client):
     await login_admin(admin_ui_client)
+    await select_account(admin_ui_client)
 
     create_scope_res = await admin_ui_client.post(
         "/admin/scopes",
-        data={"account_id": ACCOUNT_ID, "name": "ops"},
+        data={"name": "ops"},
     )
     assert create_scope_res.status_code == 200
     assert "Scope" in create_scope_res.text
-    assert ACCOUNT_ID in create_scope_res.text
     assert "OPS" in create_scope_res.text
     assert "created" in create_scope_res.text
 
     create_user_res = await admin_ui_client.post(
         "/admin/users",
         data={
-            "account_id": ACCOUNT_ID,
             "username": "alice",
             "first_name": "Alice",
             "last_name": "Doe",
@@ -148,11 +162,10 @@ async def test_admin_can_manage_scopes_users_and_licenses(admin_ui_client):
     )
     assert create_user_res.status_code == 200
     assert "User &#39;alice&#39; created." in create_user_res.text
-    assert ACCOUNT_ID in create_user_res.text
 
     assign_scope_res = await admin_ui_client.post(
         "/admin/scopes/assign",
-        data={"account_id": ACCOUNT_ID, "name": "ops", "username": "alice"},
+        data={"name": "ops", "username": "alice"},
     )
     assert assign_scope_res.status_code == 200
     assert "assigned" in assign_scope_res.text
@@ -163,7 +176,6 @@ async def test_admin_can_manage_scopes_users_and_licenses(admin_ui_client):
     assign_license_res = await admin_ui_client.post(
         "/admin/licenses",
         data={
-            "account_id": ACCOUNT_ID,
             "username": "alice",
             "scope": "ops",
             "expires_in": "15m",
@@ -178,7 +190,7 @@ async def test_admin_can_manage_scopes_users_and_licenses(admin_ui_client):
 
     block_user_res = await admin_ui_client.post(
         "/admin/users/block",
-        data={"account_id": ACCOUNT_ID, "username": "alice"},
+        data={"username": "alice"},
     )
     assert block_user_res.status_code == 200
     assert "blocked" in block_user_res.text
@@ -197,14 +209,14 @@ async def test_admin_can_manage_scopes_users_and_licenses(admin_ui_client):
 
     unblock_user_res = await admin_ui_client.post(
         "/admin/users/unblock",
-        data={"account_id": ACCOUNT_ID, "username": "alice"},
+        data={"username": "alice"},
     )
     assert unblock_user_res.status_code == 200
     assert "unblocked" in unblock_user_res.text
 
     blocked_delete_scope_res = await admin_ui_client.post(
         "/admin/scopes/delete",
-        data={"account_id": ACCOUNT_ID, "name": "OPS"},
+        data={"name": "OPS"},
     )
     assert blocked_delete_scope_res.status_code == 200
     assert "cannot be deleted" in blocked_delete_scope_res.text
@@ -212,33 +224,33 @@ async def test_admin_can_manage_scopes_users_and_licenses(admin_ui_client):
 
     delete_license_res = await admin_ui_client.post(
         "/admin/licenses/delete",
-        data={"account_id": ACCOUNT_ID, "username": "alice", "scope": "OPS"},
+        data={"username": "alice", "scope": "OPS"},
     )
     assert delete_license_res.status_code == 200
     assert "License removed" in delete_license_res.text
 
     unassign_scope_res = await admin_ui_client.post(
         "/admin/scopes/unassign",
-        data={"account_id": ACCOUNT_ID, "name": "OPS", "username": "alice"},
+        data={"name": "OPS", "username": "alice"},
     )
     assert unassign_scope_res.status_code == 200
     assert "unassigned" in unassign_scope_res.text
 
     delete_scope_res = await admin_ui_client.post(
         "/admin/scopes/delete",
-        data={"account_id": ACCOUNT_ID, "name": "OPS"},
+        data={"name": "OPS"},
     )
     assert delete_scope_res.status_code == 200
     assert "deleted" in delete_scope_res.text
 
-    users_page_res = await admin_ui_client.get(f"/admin/users?account_id={ACCOUNT_ID}")
+    users_page_res = await admin_ui_client.get("/admin/users")
     assert users_page_res.status_code == 200
     assert "Existing users" in users_page_res.text
     assert ACCOUNT_ID in users_page_res.text
 
     delete_user_res = await admin_ui_client.post(
         "/admin/users/delete",
-        data={"account_id": ACCOUNT_ID, "username": "alice"},
+        data={"username": "alice"},
     )
     assert delete_user_res.status_code == 200
     assert "User &#39;alice&#39; deleted." in delete_user_res.text
@@ -259,6 +271,7 @@ async def test_admin_can_manage_scopes_users_and_licenses(admin_ui_client):
 @pytest.mark.asyncio
 async def test_admin_can_open_and_use_acl_rbac_abac_and_ngac_pages(admin_ui_client):
     await login_admin(admin_ui_client)
+    await select_account(admin_ui_client)
 
     acl_page = await admin_ui_client.get("/admin/acl")
     assert acl_page.status_code == 200
