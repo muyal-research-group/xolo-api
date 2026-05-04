@@ -7,22 +7,11 @@
             <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Scope assignments</h1>
             <p class="mt-2 text-sm text-slate-500">Assign scopes to users and remove assignments when needed.</p>
         </div>
-        <form method="get" action="{{ request.url_for('admin_scope_assignments_page') }}" class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-            <label class="block">
-                <span class="mb-2 block text-sm font-medium text-slate-700">Account ID</span>
-                <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="account_id" value="{{ current_account_id }}" placeholder="acc-main">
-            </label>
-            <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700">Load account</button>
-        </form>
     </div>
 </section>
 
 <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
     <form method="post" action="{{ request.url_for('admin_assign_scope') }}" class="grid gap-4 md:grid-cols-3">
-        <label class="block">
-            <span class="mb-2 block text-sm font-medium text-slate-700">Account ID</span>
-            <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="account_id" value="{{ current_account_id }}" required>
-        </label>
         <label class="block">
             <span class="mb-2 block text-sm font-medium text-slate-700">Scope name</span>
             <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="name" required>
@@ -42,7 +31,7 @@
     {% if current_account_id %}
     <p class="mt-2 text-sm text-slate-500">Showing assignments for account <span class="font-semibold text-slate-900">{{ current_account_id }}</span>.</p>
     {% else %}
-    <p class="mt-2 text-sm text-slate-500">Enter an account ID above to view account-owned assignments.</p>
+    <p class="mt-2 text-sm text-slate-500">Select an account from the admin panel to manage assignments.</p>
     {% endif %}
     {% if assignments %}
     <div class="mt-4 overflow-x-auto">

@@ -61,6 +61,11 @@ def _cookie_name() -> str:
     return Cfg.XOLO_ADMIN_UI_SESSION_COOKIE_NAME
 
 
+def _get_cookie_path(request: Request) -> str:
+    """Get cookie path respecting root_path configuration."""
+    return request.scope.get("root_path") or "/"
+
+
 def _cookie_secure() -> bool:
     return Cfg.XOLO_ADMIN_UI_SESSION_SECURE
 
@@ -106,7 +111,7 @@ def _redirect_to_login(request: Request, *, clear_cookie: bool = False) -> Redir
     if clear_cookie:
         response.delete_cookie(
             _cookie_name(),
-            path="/",
+            path=_get_cookie_path(request),
             secure=_cookie_secure(),
             httponly=True,
             samesite="lax",
@@ -124,7 +129,7 @@ def _ensure_admin_session(request: Request) -> dict | RedirectResponse:
     return session
 
 
-def _set_admin_session_cookie(response, *, active_account_id: str = "") -> None:
+def _set_admin_session_cookie(response, request: Request, *, active_account_id: str = "") -> None:
     response.set_cookie(
         key=_cookie_name(),
         value=_create_admin_session_token(active_account_id=active_account_id),
@@ -132,7 +137,7 @@ def _set_admin_session_cookie(response, *, active_account_id: str = "") -> None:
         httponly=True,
         secure=_cookie_secure(),
         samesite="lax",
-        path="/",
+        path=_get_cookie_path(request),
     )
 
 
@@ -383,7 +388,7 @@ async def login(
         url=request.url_for("admin_dashboard"),
         status_code=status.HTTP_303_SEE_OTHER,
     )
-    _set_admin_session_cookie(response)
+    _set_admin_session_cookie(response, request)
     log.info(build_log_payload("admin_ui.login", started_at=t1))
     return response
 
@@ -444,7 +449,7 @@ async def select_account(
         current_account_id=current_account_id if error_message is None else _selected_account_id(session),
     )
     if error_message is None:
-        _set_admin_session_cookie(response, active_account_id=current_account_id)
+        _set_admin_session_cookie(response, request, active_account_id=current_account_id)
         success_message = f"Active account set to '{current_account_id}'."
         response = _render(
             request,
@@ -455,7 +460,7 @@ async def select_account(
             success_message=success_message,
             current_account_id=current_account_id,
         )
-        _set_admin_session_cookie(response, active_account_id=current_account_id)
+        _set_admin_session_cookie(response, request, active_account_id=current_account_id)
         log.info(build_log_payload("admin_ui.account.select", started_at=t1, account_id=current_account_id))
         return response
 
@@ -480,7 +485,7 @@ async def clear_account(
         success_message="Active account cleared.",
         current_account_id="",
     )
-    _set_admin_session_cookie(response)
+    _set_admin_session_cookie(response, request)
     log.info(build_log_payload("admin_ui.account.clear", started_at=t1, previous_account_id=_selected_account_id(session) or None))
     return response
 
@@ -591,7 +596,7 @@ async def delete_account(
         current_account_id="" if account_id.strip() == selected_account_id and result.is_ok else selected_account_id,
     )
     if account_id.strip() == selected_account_id and result.is_ok:
-        _set_admin_session_cookie(response)
+        _set_admin_session_cookie(response, request)
     return response
 
 
