@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} · Xolo Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        xolo: {
+                            50: "#eff6ff",
+                            100: "#dbeafe",
+                            500: "#2563eb",
+                            600: "#1d4ed8",
+                            700: "#1e40af",
+                        },
+                    },
+                },
+            },
+        };
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            th {
+                @apply px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
+            }
+
+            td {
+                @apply break-words px-3 py-3 align-top text-sm text-slate-700;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900">
+    <header class="border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+            <div>
+                <p class="text-lg font-semibold tracking-tight text-slate-900">Xolo Admin</p>
+                <p class="text-sm text-slate-500">Simple internal admin panel</p>
+            </div>
+            {% if authenticated %}
+            <div class="flex flex-col gap-3 lg:items-end">
+                <p class="text-sm text-slate-600">Active account: <span class="font-semibold text-slate-900">{{ current_account_id or "none selected" }}</span></p>
+                <nav class="flex flex-wrap items-center gap-2">
+                <a class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="{{ request.url_for('admin_dashboard') }}">Home</a>
+                <a class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="{{ request.url_for('admin_accounts_page') }}">Accounts</a>
+                <a class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="{{ request.url_for('admin_apikeys_page') }}">API Keys</a>
+                <a class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="{{ request.url_for('admin_scopes_page') }}">Scopes</a>
+                <a class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="{{ request.url_for('admin_scope_assignments_page') }}">Assignments</a>
+                <a class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="{{ request.url_for('admin_users_page') }}">Users</a>
+                <a class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="{{ request.url_for('admin_licenses_page') }}">Licenses</a>
+                <a class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="{{ request.url_for('admin_acl_page') }}">ACL</a>
+                <a class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="{{ request.url_for('admin_rbac_page') }}">RBAC</a>
+                <a class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="{{ request.url_for('admin_abac_page') }}">ABAC</a>
+                <a class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="{{ request.url_for('admin_ngac_page') }}">NGAC</a>
+                <form method="post" action="{{ request.url_for('admin_logout') }}">
+                    <button type="submit" class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700">Logout</button>
+                </form>
+                </nav>
+            </div>
+            {% endif %}
+        </div>
+    </header>
+    <main class="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
+        {% if success_message %}
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 shadow-sm">{{ success_message }}</div>
+        {% endif %}
+        {% if error_message %}
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 shadow-sm">{{ error_message }}</div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

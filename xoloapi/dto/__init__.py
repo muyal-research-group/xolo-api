@@ -1,2 +1,1 @@
-from xoloapi.dto.user import *
-from xoloapi.dto.acl import *
+from commonx.dto.xolo import *

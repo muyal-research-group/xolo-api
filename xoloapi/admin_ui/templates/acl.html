@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="mb-6">
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">ACL</h1>
+        <p class="mt-2 text-sm text-slate-500">Manage groups, memberships, resource claims, and grants with super-admin privileges.</p>
+    </div>
+    <div class="grid gap-5 xl:grid-cols-2">
+        <form method="post" action="{{ request.url_for('admin_create_acl_group') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Create group</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="name" placeholder="Group name" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="description" placeholder="Description">
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="owner_id" placeholder="Owner user id (optional)">
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Create group</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_claim_acl_resource') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Claim resource</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="resource_id" placeholder="Resource id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="owner_id" placeholder="Owner user id (optional)">
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Claim resource</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_add_acl_group_member') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Add group member</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="group_id" placeholder="Group id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="user_id" placeholder="User id" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Add member</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_remove_acl_group_member') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Remove group member</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="group_id" placeholder="Group id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="user_id" placeholder="User id" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white">Remove member</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_grant_acl_permission') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Grant permissions</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="resource_id" placeholder="Resource id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="principal_id" placeholder="Principal id" required>
+            <select class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" name="principal_type" required>
+                {% for principal_type in acl_principal_types %}
+                <option value="{{ principal_type.value }}">{{ principal_type.value }}</option>
+                {% endfor %}
+            </select>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="permissions" placeholder="read,write,delete,sys:manage" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Grant</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_revoke_acl_permission') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Revoke permissions</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="resource_id" placeholder="Resource id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="principal_id" placeholder="Principal id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="permissions" placeholder="read,write,delete,sys:manage" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white">Revoke</button>
+        </form>
+    </div>
+</section>
+
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">ACL groups</h2>
+    {% if acl_groups %}
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+            <tr><th>Group</th><th>Owner</th><th>Members</th><th>Actions</th></tr>
+            {% for row in acl_groups %}
+            <tr class="border-t border-slate-200">
+                <td>{{ row.group.name }}<div class="text-xs text-slate-500">{{ row.group.group_id }}</div></td>
+                <td>{{ row.group.owner_id }}</td>
+                <td>{% for member in row.members %}{{ member.user_id }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                <td>
+                    <form method="post" action="{{ request.url_for('admin_delete_acl_group') }}">
+                        <input type="hidden" name="group_id" value="{{ row.group.group_id }}">
+                        <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <p class="mt-4 text-sm text-slate-500">No ACL groups yet.</p>
+    {% endif %}
+</section>
+
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Resource policies</h2>
+    {% if acl_policies %}
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+            <tr><th>Resource</th><th>Grants</th><th>Action</th></tr>
+            {% for policy in acl_policies %}
+            <tr class="border-t border-slate-200">
+                <td>{{ policy.resource_id }}</td>
+                <td>{% for grant in policy.grants %}{{ grant.principal.type.value }}:{{ grant.principal.id }} [{{ grant.permissions | map(attribute='value') | join(', ') }}]{% if grant.is_owner %} owner{% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+                <td>
+                    <form method="post" action="{{ request.url_for('admin_delete_acl_resource') }}">
+                        <input type="hidden" name="resource_id" value="{{ policy.resource_id }}">
+                        <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <p class="mt-4 text-sm text-slate-500">No ACL resource policies yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

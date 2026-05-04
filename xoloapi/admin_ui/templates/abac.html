@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="mb-6">
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">ABAC</h1>
+        <p class="mt-2 text-sm text-slate-500">Manage simple event-based policies and evaluate requests.</p>
+    </div>
+    <div class="grid gap-5 xl:grid-cols-2">
+        <form method="post" action="{{ request.url_for('admin_create_abac_policy') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Create policy</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="name" placeholder="Policy name" required>
+            <select class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" name="effect" required>
+                {% for effect in abac_effects %}
+                <option value="{{ effect.value }}">{{ effect.value }}</option>
+                {% endfor %}
+            </select>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="subject" placeholder="Subject" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="resource" placeholder="Resource" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="location" value="*">
+            <div class="grid gap-4 md:grid-cols-2">
+                <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="time_start" placeholder="HH:MM">
+                <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="time_end" placeholder="HH:MM">
+            </div>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="action" placeholder="Action" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Create policy</button>
+        </form>
+        <form method="post" action="{{ request.url_for('admin_update_abac_policy') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
+            <h2 class="text-lg font-semibold text-slate-900">Update policy</h2>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="policy_id" placeholder="Policy id" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="name" placeholder="Policy name" required>
+            <select class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" name="effect" required>
+                {% for effect in abac_effects %}
+                <option value="{{ effect.value }}">{{ effect.value }}</option>
+                {% endfor %}
+            </select>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="subject" placeholder="Subject" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="resource" placeholder="Resource" required>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="location" value="*">
+            <div class="grid gap-4 md:grid-cols-2">
+                <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="time_start" placeholder="HH:MM">
+                <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="time_end" placeholder="HH:MM">
+            </div>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="action" placeholder="Action" required>
+            <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white">Update policy</button>
+        </form>
+    </div>
+</section>
+
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Evaluate request</h2>
+    <form method="post" action="{{ request.url_for('admin_evaluate_abac') }}" class="mt-4 grid gap-4 md:grid-cols-2">
+        <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="subject" placeholder="Subject" required>
+        <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="resource" placeholder="Resource" required>
+        <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="location" value="*">
+        <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="time" placeholder="HH:MM">
+        <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm md:col-span-2" type="text" name="action" placeholder="Action" required>
+        <div class="md:col-span-2">
+            <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Evaluate</button>
+        </div>
+    </form>
+    {% if evaluation_result %}
+    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+        <div><strong>Allowed:</strong> {{ "yes" if evaluation_result.allowed else "no" }}</div>
+        <div><strong>Reason:</strong> {{ evaluation_result.reason }}</div>
+        <div><strong>Policy:</strong> {{ evaluation_result.matched_policy or "—" }}</div>
+        <div><strong>Event:</strong> {{ evaluation_result.matched_event or "—" }}</div>
+    </div>
+    {% endif %}
+</section>
+
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Policies</h2>
+    {% if policies %}
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+            <tr><th>Policy</th><th>Effect</th><th>Events</th><th>Action</th></tr>
+            {% for policy in policies %}
+            <tr class="border-t border-slate-200">
+                <td>{{ policy.name }}<div class="text-xs text-slate-500">{{ policy.policy_id }}</div></td>
+                <td>{{ policy.effect.value }}</td>
+                <td>{% for event in policy.events %}{{ event.subject.value }} / {{ event.resource.value }} / {{ event.location.value }} / {{ event.action.value }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+                <td>
+                    <form method="post" action="{{ request.url_for('admin_delete_abac_policy') }}">
+                        <input type="hidden" name="policy_id" value="{{ policy.policy_id }}">
+                        <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <p class="mt-4 text-sm text-slate-500">No ABAC policies yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="mx-auto w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <div class="mb-6">
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Admin login</h1>
+        <p class="mt-2 text-sm text-slate-500">Enter a valid admin token to open the internal admin panel.</p>
+    </div>
+    <form method="post" action="{{ request.url_for('admin_login_submit') }}" class="space-y-4">
+        <label class="block">
+            <span class="mb-2 block text-sm font-medium text-slate-700">Admin token</span>
+            <input class="mt-2 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="password" name="admin_token" autocomplete="current-password" required>
+        </label>
+        <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-xolo-700">Open admin panel</button>
+    </form>
+</section>
+{% endblock %}

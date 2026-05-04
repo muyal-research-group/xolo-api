@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Admin panel</h1>
+            <p class="mt-2 text-sm text-slate-500">Choose the operation you want to perform. The selected account is reused across all account-owned admin pages.</p>
+            <p class="mt-3 text-sm text-slate-600">Current account: <span class="font-semibold text-slate-900">{{ current_account_id or "none selected" }}</span></p>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <form method="post" action="{{ request.url_for('admin_select_account') }}" class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <label class="block">
+                    <span class="mb-2 block text-sm font-medium text-slate-700">Active account ID</span>
+                    <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="account_id" value="{{ current_account_id }}" placeholder="acc-main">
+                </label>
+                <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-xolo-700">Use account</button>
+            </form>
+            {% if current_account_id %}
+            <form method="post" action="{{ request.url_for('admin_clear_account') }}">
+                <button type="submit" class="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50">Clear account</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+    <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Accounts</h2>
+        <p class="mt-2 text-sm text-slate-500">Create and remove top-level accounts before managing account-owned resources.</p>
+        <a class="mt-4 inline-flex items-center rounded-xl bg-xolo-50 px-3 py-2 text-sm font-medium text-xolo-700 transition hover:bg-xolo-100" href="{{ request.url_for('admin_accounts_page') }}">Manage accounts</a>
+    </article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">API Keys</h2>
+        <p class="mt-2 text-sm text-slate-500">Create new account-owned API Keys and review stored metadata.</p>
+        <a class="mt-4 inline-flex items-center rounded-xl bg-xolo-50 px-3 py-2 text-sm font-medium text-xolo-700 transition hover:bg-xolo-100" href="{{ request.url_for('admin_apikeys_page') }}">Manage API Keys</a>
+    </article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Scopes</h2>
+        <p class="mt-2 text-sm text-slate-500">Create and delete account-owned scopes.</p>
+        <a class="mt-4 inline-flex items-center rounded-xl bg-xolo-50 px-3 py-2 text-sm font-medium text-xolo-700 transition hover:bg-xolo-100" href="{{ request.url_for('admin_scopes_page') }}">Manage scopes</a>
+    </article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Scope assignments</h2>
+        <p class="mt-2 text-sm text-slate-500">Assign scopes to account users and remove assignments when needed.</p>
+        <a class="mt-4 inline-flex items-center rounded-xl bg-xolo-50 px-3 py-2 text-sm font-medium text-xolo-700 transition hover:bg-xolo-100" href="{{ request.url_for('admin_scope_assignments_page') }}">Manage assignments</a>
+    </article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Users</h2>
+        <p class="mt-2 text-sm text-slate-500">Create users, review current account members, and delete users when necessary.</p>
+        <a class="mt-4 inline-flex items-center rounded-xl bg-xolo-50 px-3 py-2 text-sm font-medium text-xolo-700 transition hover:bg-xolo-100" href="{{ request.url_for('admin_users_page') }}">Manage users</a>
+    </article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Licenses</h2>
+        <p class="mt-2 text-sm text-slate-500">Assign licenses inside the active account, review active entries, and remove them when needed.</p>
+        <a class="mt-4 inline-flex items-center rounded-xl bg-xolo-50 px-3 py-2 text-sm font-medium text-xolo-700 transition hover:bg-xolo-100" href="{{ request.url_for('admin_licenses_page') }}">Manage licenses</a>
+    </article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">ACL</h2>
+        <p class="mt-2 text-sm text-slate-500">Manage ACL groups, memberships, resource claims, and grants.</p>
+        <a class="mt-4 inline-flex items-center rounded-xl bg-xolo-50 px-3 py-2 text-sm font-medium text-xolo-700 transition hover:bg-xolo-100" href="{{ request.url_for('admin_acl_page') }}">Manage ACL</a>
+    </article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">RBAC</h2>
+        <p class="mt-2 text-sm text-slate-500">Manage roles, permissions, hierarchies, and assignments.</p>
+        <a class="mt-4 inline-flex items-center rounded-xl bg-xolo-50 px-3 py-2 text-sm font-medium text-xolo-700 transition hover:bg-xolo-100" href="{{ request.url_for('admin_rbac_page') }}">Manage RBAC</a>
+    </article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">ABAC</h2>
+        <p class="mt-2 text-sm text-slate-500">Manage event-based policies and evaluate access requests.</p>
+        <a class="mt-4 inline-flex items-center rounded-xl bg-xolo-50 px-3 py-2 text-sm font-medium text-xolo-700 transition hover:bg-xolo-100" href="{{ request.url_for('admin_abac_page') }}">Manage ABAC</a>
+    </article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">NGAC</h2>
+        <p class="mt-2 text-sm text-slate-500">Manage graph nodes, assignments, associations, and checks.</p>
+        <a class="mt-4 inline-flex items-center rounded-xl bg-xolo-50 px-3 py-2 text-sm font-medium text-xolo-700 transition hover:bg-xolo-100" href="{{ request.url_for('admin_ngac_page') }}">Manage NGAC</a>
+    </article>
+</section>
+{% endblock %}
