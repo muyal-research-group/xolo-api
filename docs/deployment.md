@@ -78,3 +78,23 @@ MongoDB and Redis are also configured with container healthchecks before the API
 - confirm MongoDB and Redis authentication posture
 - verify the external port mapping
 - put the API behind HTTPS and a reverse proxy if exposed publicly
+
+## Deploying with root_path
+
+If deploying Xolo behind a reverse proxy that serves it at a non-root path (e.g., `https://example.com/api/xolo/`), configure FastAPI's `root_path` parameter:
+
+```python
+# In server.py or your deployment configuration
+app = FastAPI(
+    root_path="/api/xolo",  # Match your reverse proxy path
+    # ... other config
+)
+```
+
+The admin UI and all routes automatically respect the `root_path`:
+
+- Session cookies are scoped to the root path
+- Template URLs are generated with the root path included
+- All redirects and navigation work correctly
+
+No additional admin UI configuration is needed—just set `root_path` and everything adapts automatically.

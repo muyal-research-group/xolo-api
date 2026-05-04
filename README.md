@@ -134,7 +134,13 @@ Xolo uses different credentials for different surfaces:
 - **`X-Admin-Token`** for super-admin create/list/delete operations
 - **Admin UI login token** for the web admin panel at `/admin`
 
-The admin UI is intentionally minimal and is meant for trusted internal operators. It now includes an accounts page plus account-aware forms for API Keys, scopes, assignments, users, and licenses.
+The admin UI is intentionally minimal and is meant for trusted internal operators. It includes:
+
+1. **Dashboard** - select an account once to use across all admin pages
+2. **Accounts** - create and delete accounts
+3. **Account-aware forms** - API Keys, scopes, assignments, users, licenses, and authorization configuration
+
+The selected account is stored in your session cookie, so you don't need to specify it on each page.
 
 ### Users API-key requirement
 

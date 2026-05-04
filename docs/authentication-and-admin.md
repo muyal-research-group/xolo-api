@@ -40,18 +40,31 @@ The admin UI is mounted at `/admin`.
 
 1. the operator opens `/admin/login`
 2. they submit a valid admin token
-3. the UI creates a signed HttpOnly session cookie
+3. the UI creates a signed HttpOnly session cookie with account context
 4. subsequent admin pages use that cookie instead of resending the token
+
+### Account selection
+
+After login, the operator selects an account on the admin dashboard:
+
+1. open `/admin` (dashboard)
+2. select an account ID from the dropdown and submit
+3. the account is stored in the session cookie (JWT claim)
+4. all account-owned pages (users, scopes, licenses, API keys, scope assignments) now show data for that account
+5. use the "Clear account" button to reset the selection
+
+Once an account is selected, you don't need to specify it on each page—it persists across navigation.
 
 ### Admin UI sections
 
-- dashboard
-- accounts
-- API Keys
-- scopes
-- scope assignments
-- users
-- licenses
+- **dashboard** - account selection and main navigation
+- **accounts** - create and delete accounts
+- **API Keys** - create and revoke API keys for the selected account
+- **scopes** - create and delete scopes for the selected account
+- **scope assignments** - assign scopes to users within the selected account
+- **users** - create, block/unblock, and delete users in the selected account
+- **licenses** - assign and manage licenses for the selected account
+- **authorization** - ACL, RBAC, ABAC, and NGAC configuration for the selected account
 
 The UI is intentionally simple and is designed for trusted internal operations rather than public self-service.
 
