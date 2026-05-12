@@ -2,7 +2,7 @@ import time as T
 
 from fastapi import Depends, Response, status
 from fastapi.routing import APIRouter
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 from xoloapi.accounts.application.accounts_service import AccountsService

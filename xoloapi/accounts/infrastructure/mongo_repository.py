@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from option import Err, NONE, Ok, Option, Result, Some
 from motor.motor_asyncio import AsyncIOMotorCollection
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 from xoloapi.accounts.models import Account
