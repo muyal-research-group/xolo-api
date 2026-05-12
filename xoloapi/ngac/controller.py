@@ -1,7 +1,7 @@
 import time as T
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, Response, status
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 import xoloapi.db as DbX
@@ -294,3 +294,57 @@ async def check_access(
         )
     )
     return decision.model_dump()
+
+
+# ── Data Discovery Endpoints ──────────────────────────────────────────────────
+
+@router.get("/nodes/list", status_code=status.HTTP_200_OK)
+async def list_nodes_discovery(
+    account_id: str,
+    node_type: Optional[str] = Query(None, description="Filter by node type"),
+    _:         object        = Depends(require_api_key("ngac")),
+    service:   NGACService   = Depends(get_ngac_service),
+):
+    t1     = T.time()
+    result = await service.list_nodes(account_id, node_type=node_type)
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error(build_log_payload("ngac.list_nodes_discovery.error", started_at=t1, error=err, node_type=node_type))
+        raise err.to_http_exception()
+    nodes = result.unwrap()
+    log.info(build_log_payload("ngac.list_nodes_discovery", started_at=t1, node_type=node_type, node_count=len(nodes)))
+    return [{"id": n.node_id, "name": n.name, "type": n.node_type} for n in nodes]
+
+
+@router.get("/assignments/list", status_code=status.HTTP_200_OK)
+async def list_assignments_discovery(
+    account_id: str,
+    _:       object      = Depends(require_api_key("ngac")),
+    service: NGACService = Depends(get_ngac_service),
+):
+    t1     = T.time()
+    result = await service.list_assignments(account_id)
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error(build_log_payload("ngac.list_assignments_discovery.error", started_at=t1, error=err))
+        raise err.to_http_exception()
+    assignments = result.unwrap()
+    log.info(build_log_payload("ngac.list_assignments_discovery", started_at=t1, assignment_count=len(assignments)))
+    return [{"id": a.assignment_id, "child": a.child_node_id, "parent": a.parent_node_id} for a in assignments]
+
+
+@router.get("/associations/list", status_code=status.HTTP_200_OK)
+async def list_associations_discovery(
+    account_id: str,
+    _:       object      = Depends(require_api_key("ngac")),
+    service: NGACService = Depends(get_ngac_service),
+):
+    t1     = T.time()
+    result = await service.list_associations(account_id)
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error(build_log_payload("ngac.list_associations_discovery.error", started_at=t1, error=err))
+        raise err.to_http_exception()
+    associations = result.unwrap()
+    log.info(build_log_payload("ngac.list_associations_discovery", started_at=t1, association_count=len(associations)))
+    return [{"id": a.association_id, "user_attr": a.user_attribute_id, "object_attr": a.object_attribute_id, "operations": a.operations} for a in associations]
