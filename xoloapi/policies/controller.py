@@ -1,7 +1,7 @@
 import time as T
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Body
-from xolo.log import Log
+from xoloapi.log import Log
 from xolo.abac.models import Policy, AccessRequest
 from xolo.abac.graph import GraphBuilder
 from xolo.abac.communities import CommunityDetector

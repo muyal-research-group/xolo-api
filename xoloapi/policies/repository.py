@@ -5,7 +5,7 @@ and rebuilt on restart.  The repository stays in-memory by design.
 """
 from typing import Dict, List
 from option import Ok, Err, Result
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 from xolo.abac.models import Policy

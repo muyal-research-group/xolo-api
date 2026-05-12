@@ -2,7 +2,7 @@
 import xoloapi.config as Cfg
 from typing import Dict, List
 from option import Ok, Err, Result
-from xolo.log import Log
+from xoloapi.log import Log
 
 from xolo.abac.communities import CommunityDetector
 from xolo.abac.evaluator import CommunityPolicyEvaluator
