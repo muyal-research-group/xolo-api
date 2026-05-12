@@ -17,4 +17,4 @@ idea.md
 site/
 .cach
 .pytest_cache/
-log/
+./log/*

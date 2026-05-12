@@ -1,7 +1,7 @@
 # 
 import time as T
 #
-from xolo.log import Log
+from xoloapi.log import Log
 # 
 from xoloapi.db import connect_to_mongo,close_mongo_connection
 from xoloapi.controllers import accounts_router,licenses_router,scopes_router,users_router,policies_router,acl_router,abac_router,ngac_router,apikeys_router,rbac_router,admin_ui_router
