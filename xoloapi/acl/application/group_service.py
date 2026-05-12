@@ -19,6 +19,12 @@ class GroupService:
     async def list_groups(self, account_id: str) -> Result[list[SecurityGroup], XoloException]:
         return await self.repo.list_all(account_id)
 
+    async def list_principals(self, account_id: str) -> Result[list[dict], XoloException]:
+        """Return a simple list of principals for discovery (users as principals for now)."""
+        # In a real implementation, this would return all unique principals in policies
+        # For now, return empty list - can be extended to fetch from users service
+        return Ok([])
+
     async def list_members(self, account_id: str, group_id: str) -> Result[list[GroupMember], XoloException]:
         return await self.repo.list_members(account_id, group_id)
 

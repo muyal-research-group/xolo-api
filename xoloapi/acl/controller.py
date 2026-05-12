@@ -1,6 +1,6 @@
 import time as T
 from fastapi import APIRouter, Depends, Query, Response, status
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 import xoloapi.db as DbX
@@ -315,3 +315,56 @@ async def remove_members(
         raise err.to_http_exception()
     log.info(build_log_payload("acl.remove_members", started_at=t1, actor_user_id=me.key, group_id=group_id, member_count=len(dto.members), members=dto.members))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ── Data Discovery Endpoints ──────────────────────────────────────────────────
+
+@router.get("/groups/list", status_code=status.HTTP_200_OK)
+async def list_groups_discovery(
+    account_id: str,
+    _:       object       = Depends(require_api_key("acl")),
+    service: GroupService  = Depends(get_group_service),
+):
+    t1     = T.time()
+    result = await service.list_groups(account_id=account_id)
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error(build_log_payload("acl.list_groups_discovery.error", started_at=t1, error=err))
+        raise err.to_http_exception()
+    groups = result.unwrap()
+    log.info(build_log_payload("acl.list_groups_discovery", started_at=t1, group_count=len(groups)))
+    return [{"id": g.group_id, "name": g.name} for g in groups]
+
+
+@router.get("/principals/list", status_code=status.HTTP_200_OK)
+async def list_principals_discovery(
+    account_id: str,
+    _:       object       = Depends(require_api_key("acl")),
+    service: GroupService  = Depends(get_group_service),
+):
+    t1     = T.time()
+    result = await service.list_principals(account_id=account_id)
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error(build_log_payload("acl.list_principals_discovery.error", started_at=t1, error=err))
+        raise err.to_http_exception()
+    principals = result.unwrap()
+    log.info(build_log_payload("acl.list_principals_discovery", started_at=t1, principal_count=len(principals)))
+    return principals
+
+
+@router.get("/resources/list", status_code=status.HTTP_200_OK)
+async def list_resources_discovery(
+    account_id: str,
+    _:       object       = Depends(require_api_key("acl")),
+    service: ACLService    = Depends(get_acl_service),
+):
+    t1     = T.time()
+    result = await service.list_resources(account_id=account_id)
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error(build_log_payload("acl.list_resources_discovery.error", started_at=t1, error=err))
+        raise err.to_http_exception()
+    resources = result.unwrap()
+    log.info(build_log_payload("acl.list_resources_discovery", started_at=t1, resource_count=len(resources)))
+    return resources
