@@ -8,7 +8,7 @@ from uuid import uuid4
 import humanfriendly as HF
 import jwt
 from option import Err, Ok, Result
-from xolo.log import Log
+from xoloapi.log import Log
 from xolo.utils import Utils as XoloUtils
 
 import commonx.errors as EX
@@ -163,12 +163,12 @@ class UsersService:
 
     async def signup(self, account_id: str, dto: DTO.SignUpDTO) -> Result[DTO.CreatedUserResponseDTO, EX.XError]:
         try:
-            start_time = T.time()
-            _username = dto.username.strip()
-            _email = dto.email.strip()
+            start_time  = T.time()
+            _username   = dto.username.strip()
+            _email      = dto.email.strip()
             _first_name = dto.first_name.strip()
-            _last_name = dto.last_name.strip()
-            _scope = dto.scope.strip().upper()
+            _last_name  = dto.last_name.strip()
+            _scope      = dto.scope.strip().upper()
             log.debug(build_log_payload("users.signup.attempt", username=_username, email=_email, first_name=_first_name, last_name=_last_name, scope_name=_scope))
             maybe_user = await self.repository.find_by_username(account_id=account_id, username=_username)
             if maybe_user.is_some:

@@ -2,7 +2,7 @@ import asyncio
 
 import requests
 from option import Err, Ok
-from xolo.log import Log
+from xoloapi.log import Log
 
 import commonx.errors as EX
 import xoloapi.config as Cfg

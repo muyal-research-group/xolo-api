@@ -4,7 +4,7 @@ import humanfriendly as HF
 from motor.motor_asyncio import AsyncIOMotorCollection
 from option import Err, NONE, Ok, Option, Result, Some
 from redis.asyncio import Redis
-from xolo.log import Log
+from xoloapi.log import Log
 from commonx.dto.xolo import CreateUserDTO
 from commonx.models.xolo import User
 import commonx.errors as EX
