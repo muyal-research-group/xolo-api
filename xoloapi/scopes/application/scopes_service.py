@@ -1,7 +1,7 @@
 import time as T
 
 from option import Err, Ok, Result
-from xolo.log import Log
+from xoloapi.log import Log
 
 import commonx.errors as EX
 

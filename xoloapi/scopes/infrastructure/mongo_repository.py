@@ -1,6 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorCollection
 from option import Err, Ok, Result
-from xolo.log import Log
+from xoloapi.log import Log
 
 import commonx.errors as EX
 import commonx.models.xolo as MX
