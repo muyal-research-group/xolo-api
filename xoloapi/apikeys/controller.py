@@ -1,6 +1,6 @@
 import time as T
 from fastapi import APIRouter, Depends, Response, status
-from xolo.log import Log
+from xoloapi.log import Log
 import xoloapi.config as Cfg
 import xoloapi.db as DbX
 from xoloapi.apikeys.application.apikey_service import APIKeyService

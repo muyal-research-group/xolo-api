@@ -1,7 +1,7 @@
 import datetime
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from option import Option, Some, NONE, Result, Ok, Err
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 from xoloapi.apikeys.domain.aggregates import APIKey

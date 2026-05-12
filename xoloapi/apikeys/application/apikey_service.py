@@ -4,7 +4,7 @@ import secrets
 import datetime
 from nanoid import generate
 from option import Ok, Err, Result, Option
-from xolo.log import Log
+from xoloapi.log import Log
 from xoloapi.apikeys.domain.aggregates import APIKey
 from xoloapi.apikeys.domain.value_objects import APIKeyScope
 from xoloapi.apikeys.domain.repositories import IAPIKeyRepository
