@@ -5,7 +5,7 @@ import humanfriendly as HF
 import jwt
 import option as OP
 from xolo.license import LicenseManager
-from xolo.log import Log
+from xoloapi.log import Log
 from zoneinfo import ZoneInfo
 
 import commonx.errors as EX
