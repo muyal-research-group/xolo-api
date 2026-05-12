@@ -126,3 +126,40 @@
     </article>
 </section>
 {% endblock %}
+
+<script>
+async function loadNgacDiscovery() {
+    const accountId = document.body.getAttribute('data-account-id');
+    if (!accountId) return;
+
+    try {
+        const nodesRes = await fetch(`/api/v4/accounts/${accountId}/ngac/nodes/list`, {
+            credentials: 'include'
+        });
+        if (nodesRes.ok) {
+            const nodes = await nodesRes.json();
+            console.log('Loaded', nodes.length, 'NGAC nodes');
+        }
+        
+        const assignRes = await fetch(`/api/v4/accounts/${accountId}/ngac/assignments/list`, {
+            credentials: 'include'
+        });
+        if (assignRes.ok) {
+            const assignments = await assignRes.json();
+            console.log('Loaded', assignments.length, 'NGAC assignments');
+        }
+        
+        const assocRes = await fetch(`/api/v4/accounts/${accountId}/ngac/associations/list`, {
+            credentials: 'include'
+        });
+        if (assocRes.ok) {
+            const associations = await assocRes.json();
+            console.log('Loaded', associations.length, 'NGAC associations');
+        }
+    } catch (error) {
+        console.error('Error loading NGAC discovery data:', error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadNgacDiscovery);
+</script>

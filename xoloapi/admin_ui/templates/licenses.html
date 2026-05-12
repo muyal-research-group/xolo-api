@@ -5,7 +5,7 @@
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
             <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Licenses</h1>
-            <p class="mt-2 text-sm text-slate-500">Assign licenses, review active entries, and delete them when needed.</p>
+            <p class="mt-2 text-sm text-slate-500">Issue licenses within the selected account. Licenses grant temporary access tokens for users to use specific scopes.</p>
         </div>
     </div>
 </section>
@@ -14,11 +14,23 @@
     <form method="post" action="{{ request.url_for('admin_create_license') }}" class="grid gap-4 md:grid-cols-2">
         <label class="block">
             <span class="mb-2 block text-sm font-medium text-slate-700">Username</span>
-            <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="username" required>
+            <input 
+                class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" 
+                type="text" 
+                name="username" 
+                list="users-list"
+                required>
+            <datalist id="users-list"></datalist>
         </label>
         <label class="block">
             <span class="mb-2 block text-sm font-medium text-slate-700">Scope</span>
-            <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="scope" required>
+            <input 
+                class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" 
+                type="text" 
+                name="scope" 
+                list="scopes-list"
+                required>
+            <datalist id="scopes-list"></datalist>
         </label>
         <label class="block">
             <span class="mb-2 block text-sm font-medium text-slate-700">Expires in</span>
@@ -80,4 +92,46 @@
     <p class="mt-4 text-sm text-slate-500">No licenses yet for this account.</p>
     {% endif %}
 </section>
+
+<script>
+async function loadDataLists() {
+    const accountId = document.body.getAttribute('data-account-id');
+    if (!accountId) return;
+
+    try {
+        // Fetch users with credentials (includes session cookie)
+        const usersRes = await fetch(`/api/v4/accounts/${accountId}/users/list`, {
+            credentials: 'include'
+        });
+        if (usersRes.ok) {
+            const users = await usersRes.json();
+            const usersList = document.getElementById('users-list');
+            users.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.username;
+                usersList.appendChild(option);
+            });
+        }
+
+        // Fetch scopes with credentials (includes session cookie)
+        const scopesRes = await fetch(`/api/v4/accounts/${accountId}/scopes/list`, {
+            credentials: 'include'
+        });
+        if (scopesRes.ok) {
+            const scopes = await scopesRes.json();
+            const scopesList = document.getElementById('scopes-list');
+            scopes.forEach(scope => {
+                const option = document.createElement('option');
+                option.value = scope.name;
+                scopesList.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading data lists:', error);
+    }
+}
+
+// Load datalists on page load
+document.addEventListener('DOMContentLoaded', loadDataLists);
+</script>
 {% endblock %}

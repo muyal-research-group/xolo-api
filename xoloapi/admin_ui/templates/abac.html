@@ -95,3 +95,24 @@
     {% endif %}
 </section>
 {% endblock %}
+
+<script>
+async function loadAbacDiscovery() {
+    const accountId = document.body.getAttribute('data-account-id');
+    if (!accountId) return;
+
+    try {
+        const policiesRes = await fetch(`/api/v4/accounts/${accountId}/abac/policies/list`, {
+            credentials: 'include'
+        });
+        if (policiesRes.ok) {
+            const policies = await policiesRes.json();
+            console.log('Loaded', policies.length, 'ABAC policies');
+        }
+    } catch (error) {
+        console.error('Error loading ABAC discovery data:', error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadAbacDiscovery);
+</script>

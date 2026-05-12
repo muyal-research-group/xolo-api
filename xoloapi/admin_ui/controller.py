@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.abac.dto as ABACDTO
 import xoloapi.accounts.dto as AccountsDTO
@@ -49,11 +49,11 @@ router = APIRouter(prefix="/admin", tags=["admin-ui"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 ADMIN_UI_ACTOR_ID = "admin-ui"
 log = Log(
-    name="admin_ui.controller",
-    console_handler_filter=lambda x: True,
-    interval=Cfg.XOLO_LOG_INTERVAL,
-    when=Cfg.XOLO_LOG_WHEN,
-    path=Cfg.XOLO_LOG_PATH,
+    name                   = "admin_ui.controller",
+    console_handler_filter = lambda x: True,
+    interval               = Cfg.XOLO_LOG_INTERVAL,
+    when                   = Cfg.XOLO_LOG_WHEN,
+    path                   = Cfg.XOLO_LOG_PATH,
 )
 
 

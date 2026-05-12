@@ -107,3 +107,41 @@
     {% endif %}
 </section>
 {% endblock %}
+
+<script>
+async function loadRbacDiscovery() {
+    const accountId = document.body.getAttribute('data-account-id');
+    if (!accountId) return;
+
+    try {
+        const rolesRes = await fetch(`/api/v4/accounts/${accountId}/rbac/roles/list`, {
+            credentials: 'include'
+        });
+        if (rolesRes.ok) {
+            const roles = await rolesRes.json();
+            const roleInputs = document.querySelectorAll('input[name="role_id"], input[name="parent_role_id"]');
+            roleInputs.forEach(input => {
+                if (!input.getAttribute('list')) {
+                    const datalistId = input.name + '-list';
+                    let datalist = document.getElementById(datalistId);
+                    if (!datalist) {
+                        datalist = document.createElement('datalist');
+                        datalist.id = datalistId;
+                        input.parentNode.appendChild(datalist);
+                        input.setAttribute('list', datalistId);
+                    }
+                    roles.forEach(role => {
+                        const option = document.createElement('option');
+                        option.value = role.id;
+                        datalist.appendChild(option);
+                    });
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error loading RBAC discovery data:', error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadRbacDiscovery);
+</script>
