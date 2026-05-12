@@ -12,7 +12,7 @@ import datetime
 from typing import Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from option import Result, Ok, Err, Some, NONE
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 from xoloapi.errors.base import DatabaseError, NotFoundError, XoloException
