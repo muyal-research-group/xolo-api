@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from httpx import ASGITransport, AsyncClient
 from motor.motor_asyncio import AsyncIOMotorClient
-from option import Ok
+from option import Ok, Err
 import redis.asyncio as aioredis
 
 import xoloapi.config as Cfg
@@ -24,7 +24,8 @@ class FakeAPIKeyService:
         self._account_id = account_id
 
     async def validate(self, raw_key: str, required_scope: str):
-        return Ok(APIKey(
+        # Create the API key object
+        api_key = APIKey(
             key_id="test-key",
             key_hash="hash",
             key_prefix="test",
@@ -32,7 +33,18 @@ class FakeAPIKeyService:
             name="Test key",
             scopes=self._scopes,
             created_by="tests",
-        ))
+        )
+        
+        # Check if the required scope is in the key's scopes (matching real validation)
+        if not api_key.allows(required_scope):
+            from xoloapi.errors import AccessDeniedError
+            error = AccessDeniedError(
+                f"API key does not have the '{required_scope}' scope",
+                metadata={"required_scope": required_scope, "key_scopes": [s.value for s in api_key.scopes]},
+            )
+            return Err(error)
+        
+        return Ok(api_key)
 
 
 async def reset_database(db_name: str, collections: list[str]) -> None:

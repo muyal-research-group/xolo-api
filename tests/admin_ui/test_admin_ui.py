@@ -2,10 +2,15 @@ import re
 
 import pytest
 
+# Admin test account (used by Xolo operators for testing)
 ACCOUNT_ID = "acc-ui"
 
 
 async def login_admin(client):
+    """
+    Authenticate as a Xolo operator using an admin token.
+    This provides access to the admin UI for managing accounts and issuing API keys.
+    """
     response = await client.post(
         "/admin/login",
         data={"admin_token": "admin-token"},
@@ -16,7 +21,10 @@ async def login_admin(client):
 
 
 async def select_account(client, account_id: str = ACCOUNT_ID):
-    """Select an account in the admin session."""
+    """
+    Select an account in the admin session (admin-only operation).
+    This determines which account subsequent admin operations target.
+    """
     response = await client.post(
         "/admin/account",
         data={"account_id": account_id},
@@ -28,6 +36,7 @@ async def select_account(client, account_id: str = ACCOUNT_ID):
 
 
 async def create_account(client, account_id: str = ACCOUNT_ID, name: str = "UI Account"):
+    """Create a new account (admin-only operation)."""
     response = await client.post(
         "/admin/accounts",
         data={"account_id": account_id, "name": name},
@@ -39,6 +48,7 @@ async def create_account(client, account_id: str = ACCOUNT_ID, name: str = "UI A
 
 @pytest.mark.asyncio
 async def test_admin_login_gate_and_logout(admin_ui_client):
+    """Test admin authentication and session management (admin-only operations)."""
     redirect_res = await admin_ui_client.get("/admin", follow_redirects=False)
     assert redirect_res.status_code == 303
     assert redirect_res.headers["location"] == "http://test/admin/login"
@@ -70,6 +80,7 @@ async def test_admin_login_gate_and_logout(admin_ui_client):
 
 @pytest.mark.asyncio
 async def test_admin_can_create_list_and_delete_accounts(admin_ui_client):
+    """Test account CRUD operations (admin-only operations)."""
     await login_admin(admin_ui_client)
 
     page_res = await admin_ui_client.get("/admin/accounts")
@@ -138,6 +149,17 @@ async def test_admin_can_create_api_key_and_raw_key_is_one_time(admin_ui_client)
 
 @pytest.mark.asyncio
 async def test_admin_can_manage_scopes_users_and_licenses(admin_ui_client):
+    """
+    Test the full account-owner workflow (via admin UI):
+    1. Select an account
+    2. Create users (account members)
+    3. Create scopes (access levels for the account)
+    4. Assign scopes to users
+    5. Issue licenses to users for scopes
+    
+    In production, account owners would perform these operations via the REST API
+    using account-scoped API keys, not the admin UI.
+    """
     await login_admin(admin_ui_client)
     await select_account(admin_ui_client)
 

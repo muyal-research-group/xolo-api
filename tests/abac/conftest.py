@@ -5,7 +5,6 @@ Requires:
   - MongoDB reachable at mongodb://localhost:27018
   - Redis reachable (for the FastAPI lifespan in controller tests)
 """
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from motor.motor_asyncio import AsyncIOMotorClient
