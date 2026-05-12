@@ -7,7 +7,7 @@ import xoloapi.services as SX
 from xoloapi.security import Security
 import xoloapi.errors as EX
 import xoloapi.dto as DTO
-from xolo.log import Log
+from xoloapi.log import Log
 from xoloapi.users.dependencies import get_users_service as get_user_service
 
 import xoloapi.config as Cfg
