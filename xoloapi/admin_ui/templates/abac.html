@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 
 {% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
     <div class="mb-6">
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900">ABAC</h1>
-        <p class="mt-2 text-sm text-slate-500">Manage simple event-based policies and evaluate requests.</p>
+        <p class="mt-2 text-sm text-slate-500">Manage event-based policies and evaluate requests. Location is optional — leave blank for wildcard (any location).</p>
     </div>
     <div class="grid gap-5 xl:grid-cols-2">
         <form method="post" action="{{ request.url_for('admin_create_abac_policy') }}" class="space-y-4 rounded-xl border border-slate-200 p-4">
@@ -17,10 +20,38 @@
             </select>
             <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="subject" placeholder="Subject" required>
             <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="resource" placeholder="Resource" required>
-            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="location" value="*">
-            <div class="grid gap-4 md:grid-cols-2">
-                <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="time_start" placeholder="HH:MM">
-                <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="time_end" placeholder="HH:MM">
+            <div>
+                <p class="mb-1 text-xs font-medium text-slate-600">Location zone (optional — click map to place, or leave blank for wildcard)</p>
+                <div id="create-map" style="height:180px; border-radius:0.75rem; border:1px solid #cbd5e1; overflow:hidden;"></div>
+                <div class="mt-2 grid grid-cols-3 gap-2">
+                    <input class="block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" type="number" name="location_lat" id="create-lat" step="any" placeholder="Latitude">
+                    <input class="block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" type="number" name="location_lng" id="create-lng" step="any" placeholder="Longitude">
+                    <div>
+                        <label class="text-xs text-slate-600">Radius: <span id="create-radius-val">1</span> km</label>
+                        <input type="range" name="location_radius_km" id="create-radius" min="0.1" max="5" step="0.1" value="1" class="w-full accent-blue-600">
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium text-slate-600">Time window mode</label>
+                <select class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" name="time_mode" id="create-time-mode" onchange="updateTimeMode('create')">
+                    <option value="wildcard"> Any time</option>
+                    <option value="datetime">Date + time range</option>
+                    <option value="time_of_day">Time of day</option>
+                    <option value="date">Date range (any time of day)</option>
+                </select>
+                <div id="create-tw-datetime" class="mt-2 grid gap-4 md:grid-cols-2" style="display:none">
+                    <label class="block"><span class="mb-1 block text-xs text-slate-500">Start</span><input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="datetime-local" name="time_start" disabled></label>
+                    <label class="block"><span class="mb-1 block text-xs text-slate-500">End</span><input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="datetime-local" name="time_end" disabled></label>
+                </div>
+                <div id="create-tw-time_of_day" class="mt-2 grid gap-4 md:grid-cols-2" style="display:none">
+                    <label class="block"><span class="mb-1 block text-xs text-slate-500">Start time</span><input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="time" name="time_start" disabled></label>
+                    <label class="block"><span class="mb-1 block text-xs text-slate-500">End time</span><input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="time" name="time_end" disabled></label>
+                </div>
+                <div id="create-tw-date" class="mt-2 grid gap-4 md:grid-cols-2" style="display:none">
+                    <label class="block"><span class="mb-1 block text-xs text-slate-500">Start date</span><input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="date" name="time_start" disabled></label>
+                    <label class="block"><span class="mb-1 block text-xs text-slate-500">End date</span><input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="date" name="time_end" disabled></label>
+                </div>
             </div>
             <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="action" placeholder="Action" required>
             <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Create policy</button>
@@ -36,10 +67,38 @@
             </select>
             <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="subject" placeholder="Subject" required>
             <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="resource" placeholder="Resource" required>
-            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="location" value="*">
-            <div class="grid gap-4 md:grid-cols-2">
-                <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="time_start" placeholder="HH:MM">
-                <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="time_end" placeholder="HH:MM">
+            <div>
+                <p class="mb-1 text-xs font-medium text-slate-600">Location zone (optional — click map to place, or leave blank for wildcard)</p>
+                <div id="update-map" style="height:180px; border-radius:0.75rem; border:1px solid #cbd5e1; overflow:hidden;"></div>
+                <div class="mt-2 grid grid-cols-3 gap-2">
+                    <input class="block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" type="number" name="location_lat" id="update-lat" step="any" placeholder="Latitude">
+                    <input class="block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" type="number" name="location_lng" id="update-lng" step="any" placeholder="Longitude">
+                    <div>
+                        <label class="text-xs text-slate-600">Radius: <span id="update-radius-val">1</span> km</label>
+                        <input type="range" name="location_radius_km" id="update-radius" min="0.1" max="5" step="0.1" value="1" class="w-full accent-blue-600">
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label class="mb-1 block text-xs font-medium text-slate-600">Time window mode</label>
+                <select class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" name="time_mode" id="update-time-mode" onchange="updateTimeMode('update')">
+                    <option value="wildcard"> Any time</option>
+                    <option value="datetime">Date + time range</option>
+                    <option value="time_of_day">Time of day</option>
+                    <option value="date">Date range (any time of day)</option>
+                </select>
+                <div id="update-tw-datetime" class="mt-2 grid gap-4 md:grid-cols-2" style="display:none">
+                    <label class="block"><span class="mb-1 block text-xs text-slate-500">Start</span><input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="datetime-local" name="time_start" disabled></label>
+                    <label class="block"><span class="mb-1 block text-xs text-slate-500">End</span><input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="datetime-local" name="time_end" disabled></label>
+                </div>
+                <div id="update-tw-time_of_day" class="mt-2 grid gap-4 md:grid-cols-2" style="display:none">
+                    <label class="block"><span class="mb-1 block text-xs text-slate-500">Start time</span><input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="time" name="time_start" disabled></label>
+                    <label class="block"><span class="mb-1 block text-xs text-slate-500">End time</span><input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="time" name="time_end" disabled></label>
+                </div>
+                <div id="update-tw-date" class="mt-2 grid gap-4 md:grid-cols-2" style="display:none">
+                    <label class="block"><span class="mb-1 block text-xs text-slate-500">Start date</span><input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="date" name="time_start" disabled></label>
+                    <label class="block"><span class="mb-1 block text-xs text-slate-500">End date</span><input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="date" name="time_end" disabled></label>
+                </div>
             </div>
             <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="action" placeholder="Action" required>
             <button type="submit" class="inline-flex items-center rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white">Update policy</button>
@@ -52,8 +111,18 @@
     <form method="post" action="{{ request.url_for('admin_evaluate_abac') }}" class="mt-4 grid gap-4 md:grid-cols-2">
         <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="subject" placeholder="Subject" required>
         <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="resource" placeholder="Resource" required>
-        <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="location" value="*">
-        <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="text" name="time" placeholder="HH:MM">
+        <div>
+            <p class="mb-1 text-xs font-medium text-slate-600">Request location (optional — click map to place)</p>
+            <div id="eval-map" style="height:160px; border-radius:0.75rem; border:1px solid #cbd5e1; overflow:hidden;"></div>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+                <input class="block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" type="number" name="location_lat" id="eval-lat" step="any" placeholder="Latitude">
+                <input class="block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" type="number" name="location_lng" id="eval-lng" step="any" placeholder="Longitude">
+            </div>
+        </div>
+        <label class="block">
+            <span class="mb-1 block text-xs font-medium text-slate-600">Time (optional)</span>
+            <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" type="datetime-local" name="time">
+        </label>
         <input class="block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm md:col-span-2" type="text" name="action" placeholder="Action" required>
         <div class="md:col-span-2">
             <button type="submit" class="inline-flex items-center rounded-xl bg-xolo-600 px-4 py-2.5 text-sm font-medium text-white">Evaluate</button>
@@ -79,7 +148,7 @@
             <tr class="border-t border-slate-200">
                 <td>{{ policy.name }}<div class="text-xs text-slate-500">{{ policy.policy_id }}</div></td>
                 <td>{{ policy.effect.value }}</td>
-                <td>{% for event in policy.events %}{{ event.subject.value }} / {{ event.resource.value }} / {{ event.location.value }} / {{ event.action.value }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+                <td>{% for event in policy.events %}{{ event.subject.value }} / {{ event.resource.value }} / {% if event.location.center %}{{ event.location.center.lat | round(4) }},{{ event.location.center.lng | round(4) }} ±{{ event.location.radius_km }}km{% else %}any location{% endif %} / {% if event.time.is_wildcard %}any time{% elif event.time.mode.value == 'time_of_day' %}{{ event.time.start }} → {{ event.time.end }} (daily){% elif event.time.mode.value == 'date' %}{{ event.time.start }} → {{ event.time.end }} (any time){% else %}{{ event.time.start }} → {{ event.time.end }}{% endif %} / {{ event.action.value }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
                 <td>
                     <form method="post" action="{{ request.url_for('admin_delete_abac_policy') }}">
                         <input type="hidden" name="policy_id" value="{{ policy.policy_id }}">
@@ -94,25 +163,93 @@
     <p class="mt-4 text-sm text-slate-500">No ABAC policies yet.</p>
     {% endif %}
 </section>
-{% endblock %}
 
 <script>
-async function loadAbacDiscovery() {
-    const accountId = document.body.getAttribute('data-account-id');
-    if (!accountId) return;
+function updateTimeMode(prefix) {
+    var mode = document.getElementById(prefix + '-time-mode').value;
+    var sections = ['datetime', 'time_of_day', 'date'];
+    sections.forEach(function(s) {
+        var el = document.getElementById(prefix + '-tw-' + s);
+        var active = (s === mode);
+        el.style.display = active ? '' : 'none';
+        el.querySelectorAll('input').forEach(function(inp) { inp.disabled = !active; });
+    });
+}
 
-    try {
-        const policiesRes = await fetch(`/api/v4/accounts/${accountId}/abac/policies/list`, {
-            credentials: 'include'
+function initMap(mapId, latId, lngId, radiusId, radiusValId) {
+    var map = L.map(mapId).setView([20, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    var marker      = null;
+    var circle      = null;
+    var youAreHere  = null;
+    var latInput    = document.getElementById(latId);
+    var lngInput    = document.getElementById(lngId);
+    var radiusInput = radiusId ? document.getElementById(radiusId) : null;
+    var radiusVal   = radiusValId ? document.getElementById(radiusValId) : null;
+
+    function updateCircle() {
+        if (!marker || !radiusInput) return;
+        var km = parseFloat(radiusInput.value);
+        if (circle) map.removeLayer(circle);
+        circle = L.circle(marker.getLatLng(), { radius: km * 1000, color: '#2563eb', fillOpacity: 0.15 }).addTo(map);
+    }
+
+    function placeMarker(lat, lng) {
+        if (marker) map.removeLayer(marker);
+        marker = L.marker([lat, lng]).addTo(map);
+        updateCircle();
+    }
+
+    function syncFromInputs() {
+        var lat = parseFloat(latInput.value);
+        var lng = parseFloat(lngInput.value);
+        if (isNaN(lat) || isNaN(lng)) return;
+        placeMarker(lat, lng);
+        map.setView([lat, lng], map.getZoom() < 8 ? 13 : map.getZoom());
+    }
+
+    latInput.addEventListener('input', syncFromInputs);
+    lngInput.addEventListener('input', syncFromInputs);
+
+    map.on('click', function(e) {
+        var lat = e.latlng.lat.toFixed(6);
+        var lng = e.latlng.lng.toFixed(6);
+        latInput.value = lat;
+        lngInput.value = lng;
+        placeMarker(lat, lng);
+    });
+
+    if (radiusInput) {
+        radiusInput.addEventListener('input', function() {
+            if (radiusVal) radiusVal.textContent = parseFloat(this.value).toFixed(1);
+            updateCircle();
         });
-        if (policiesRes.ok) {
-            const policies = await policiesRes.json();
-            console.log('Loaded', policies.length, 'ABAC policies');
-        }
-    } catch (error) {
-        console.error('Error loading ABAC discovery data:', error);
+    }
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(pos) {
+            var lat = pos.coords.latitude;
+            var lng = pos.coords.longitude;
+            map.setView([lat, lng], 13);
+            youAreHere = L.circleMarker([lat, lng], {
+                radius: 8,
+                color: '#2563eb',
+                fillColor: '#3b82f6',
+                fillOpacity: 0.8,
+                weight: 2,
+            }).addTo(map).bindTooltip('You are here', { permanent: false });
+        });
     }
 }
 
-document.addEventListener('DOMContentLoaded', loadAbacDiscovery);
+document.addEventListener('DOMContentLoaded', function() {
+    initMap('create-map', 'create-lat', 'create-lng', 'create-radius', 'create-radius-val');
+    initMap('update-map', 'update-lat', 'update-lng', 'update-radius', 'update-radius-val');
+    initMap('eval-map',   'eval-lat',   'eval-lng',   null,            null);
+});
 </script>
+{% endblock %}

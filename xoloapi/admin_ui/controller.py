@@ -196,11 +196,22 @@ def _build_abac_policy_dto(
     effect: str,
     subject: str,
     resource: str,
-    location: str,
+    location_lat: str,
+    location_lng: str,
+    location_radius_km: str,
+    time_mode: str,
     time_start: str,
     time_end: str,
     action: str,
 ) -> ABACDTO.CreateABACPolicyDTO:
+    location = None
+    if location_lat.strip() and location_lng.strip():
+        location = ABACDTO.GeoZoneDTO(
+            lat=float(location_lat.strip()),
+            lng=float(location_lng.strip()),
+            radius_km=float(location_radius_km.strip() or "1.0"),
+        )
+    parsed_mode = ABACDTO.TimeWindowMode(time_mode.strip().lower() or "wildcard")
     return ABACDTO.CreateABACPolicyDTO(
         name=name.strip(),
         effect=ABACEffect(effect.strip().upper()),
@@ -208,7 +219,8 @@ def _build_abac_policy_dto(
             ABACDTO.CreateABACEventDTO(
                 subject=subject.strip(),
                 resource=resource.strip(),
-                location=location.strip() or "*",
+                location=location,
+                time_mode=parsed_mode,
                 time_start=time_start.strip() or None,
                 time_end=time_end.strip() or None,
                 action=action.strip(),
@@ -285,7 +297,6 @@ async def _users_metadata(users_service, account_id: str):
     if result.is_err:
         return [], result.unwrap_err()
     return result.unwrap(), None
-
 
 async def _licenses_metadata(licenses_service, account_id: str):
     result = await licenses_service.list_licenses(account_id=account_id)
@@ -686,6 +697,70 @@ async def delete_apikey(
         error_message=error_message,
         success_message=success_message,
         created_key=None,
+        current_account_id=current_account_id,
+    )
+
+
+@router.post("/apikeys/rotate", response_class=HTMLResponse, name="admin_rotate_apikey")
+async def rotate_apikey(
+    request: Request,
+    key_id: str = Form(...),
+    service=Depends(get_apikey_service),
+    accounts_service: AccountsService = Depends(get_accounts_service),
+):
+    session = _ensure_admin_session(request)
+    if isinstance(session, RedirectResponse):
+        return session
+    t1 = T.time()
+    current_account_id, error_message = await _active_account_selection(accounts_service, session, required=True)
+    rotated_key = None
+    success_message = None
+
+    if error_message is None:
+        get_result = await service.get(key_id.strip())
+        if get_result.is_err:
+            error = get_result.unwrap_err()
+            error_message = _error_message(error)
+            log.error(build_log_payload("admin_ui.apikeys.rotate.error", started_at=t1, error=error, key_id=key_id.strip(), account_id=current_account_id))
+        else:
+            maybe_key = get_result.unwrap()
+            if maybe_key.is_none or maybe_key.unwrap().account_id != current_account_id:
+                error_message = f"API key '{key_id.strip()}' was not found in account '{current_account_id}'."
+                log.warning(build_log_payload("admin_ui.apikeys.rotate.error", started_at=t1, key_id=key_id.strip(), account_id=current_account_id))
+            else:
+                result = await service.rotate(key_id.strip())
+                if result.is_err:
+                    error = result.unwrap_err()
+                    error_message = _error_message(error)
+                    log.error(build_log_payload("admin_ui.apikeys.rotate.error", started_at=t1, error=error, key_id=key_id.strip(), account_id=current_account_id))
+                else:
+                    api_key, raw_key = result.unwrap()
+                    rotated_key = {
+                        "account_id": api_key.account_id,
+                        "key_id": api_key.key_id,
+                        "key": raw_key,
+                        "key_prefix": api_key.key_prefix,
+                    }
+                    success_message = "API key rotated. Store the new raw key now; it will not be shown again."
+                    log.info(build_log_payload("admin_ui.apikeys.rotate", started_at=t1, key_id=api_key.key_id, account_id=current_account_id))
+
+    keys = []
+    load_error = None
+    if current_account_id and error_message is None:
+        keys, load_error = await _apikey_metadata(service, current_account_id)
+    if load_error is not None and error_message is None:
+        error_message = "Unable to load API key metadata."
+    return _render(
+        request,
+        "apikeys.html",
+        page_title="API Keys",
+        authenticated=True,
+        available_scopes=list(APIKeyScope),
+        keys=keys,
+        error_message=error_message,
+        success_message=success_message,
+        created_key=None,
+        rotated_key=rotated_key,
         current_account_id=current_account_id,
     )
 
@@ -1351,6 +1426,60 @@ async def delete_license(
     )
 
 
+@router.post("/licenses/rotate", response_class=HTMLResponse, name="admin_rotate_license")
+async def rotate_license(
+    request: Request,
+    username: str = Form(...),
+    scope: str = Form(...),
+    expires_in: str = Form(...),
+    licenses_service=Depends(get_licenses_service),
+    accounts_service: AccountsService = Depends(get_accounts_service),
+):
+    session = _ensure_admin_session(request)
+    if isinstance(session, RedirectResponse):
+        return session
+    t1 = T.time()
+    current_account_id, error_message = await _active_account_selection(accounts_service, session, required=True)
+    success_message = None
+    license_result = None
+    licenses = []
+    if error_message is None:
+        try:
+            dto = LicenseDTO.RotateLicenseDTO(
+                username=username.strip(),
+                scope=scope.strip(),
+                expires_in=expires_in.strip(),
+            )
+            result = await licenses_service.rotate_license(account_id=current_account_id, dto=dto)
+            if result.is_err:
+                error = result.unwrap_err()
+                error_message = _error_message(error)
+                log.error(build_log_payload("admin_ui.licenses.rotate.error", started_at=t1, error=error, account_id=current_account_id, username=dto.username, scope_name=dto.scope))
+            else:
+                license_result = result.unwrap()
+                success_message = f"License rotated for '{dto.username}' on '{dto.scope.upper()}'."
+                log.info(build_log_payload("admin_ui.licenses.rotate", started_at=t1, account_id=current_account_id, username=dto.username, scope_name=dto.scope.upper()))
+        except ValidationError as error:
+            error_message = str(error)
+            log.warning(build_log_payload("admin_ui.licenses.rotate.error", started_at=t1, error=error, account_id=current_account_id, username=username.strip(), scope_name=scope.strip()))
+    load_error = None
+    if current_account_id and error_message is None:
+        licenses, load_error = await _licenses_metadata(licenses_service, current_account_id)
+    if load_error is not None and error_message is None:
+        error_message = _error_message(load_error)
+    return _render(
+        request,
+        "licenses.html",
+        page_title="Licenses",
+        authenticated=True,
+        error_message=error_message,
+        success_message=success_message,
+        license_result=license_result,
+        licenses=licenses,
+        current_account_id=current_account_id,
+    )
+
+
 @router.get("/acl", response_class=HTMLResponse, name="admin_acl_page")
 async def acl_page(
     request: Request,
@@ -1768,6 +1897,64 @@ async def delete_acl_resource(
         acl_policies=policies,
         acl_groups=groups,
         acl_principal_types=list(ACLPrincipalType),
+        current_account_id=current_account_id,
+    )
+
+
+@router.post("/acl/check", response_class=HTMLResponse, name="admin_check_acl")
+async def check_acl(
+    request: Request,
+    user_id: str = Form(...),
+    resource_id: str = Form(...),
+    permissions: str = Form(...),
+    acl_service: ACLService = Depends(get_acl_service),
+    group_service: GroupService = Depends(get_group_service),
+    accounts_service: AccountsService = Depends(get_accounts_service),
+):
+    session = _ensure_admin_session(request)
+    if isinstance(session, RedirectResponse):
+        return session
+    t1 = T.time()
+    current_account_id, error_message = await _active_account_selection(accounts_service, session, required=True)
+    acl_check_result = None
+    if error_message is None:
+        parsed_permissions = _parse_csv_list(permissions)
+        result = await acl_service.check(
+            account_id=current_account_id,
+            user_id=user_id.strip(),
+            resource_id=resource_id.strip(),
+            permissions=parsed_permissions,
+        )
+        if result.is_err:
+            error = result.unwrap_err()
+            error_message = _error_message(error)
+            log.error(build_log_payload("admin_ui.acl.check.error", started_at=t1, error=error, account_id=current_account_id, user_id=user_id.strip(), resource_id=resource_id.strip()))
+        else:
+            acl_check_result = {
+                "user_id": user_id.strip(),
+                "resource_id": resource_id.strip(),
+                "permissions": parsed_permissions,
+                "has_permission": result.unwrap(),
+            }
+            log.info(build_log_payload("admin_ui.acl.check", started_at=t1, account_id=current_account_id, user_id=user_id.strip(), resource_id=resource_id.strip(), has_permission=result.unwrap()))
+    policies = []
+    groups = []
+    load_error = None
+    if current_account_id and error_message is None:
+        policies, groups, load_error = await _acl_metadata(acl_service, group_service, current_account_id)
+    if load_error is not None and error_message is None:
+        error_message = _error_message(load_error)
+    return _render(
+        request,
+        "acl.html",
+        page_title="ACL",
+        authenticated=True,
+        error_message=error_message,
+        success_message=None,
+        acl_policies=policies,
+        acl_groups=groups,
+        acl_principal_types=list(ACLPrincipalType),
+        acl_check_result=acl_check_result,
         current_account_id=current_account_id,
     )
 
@@ -2205,6 +2392,58 @@ async def unassign_rbac_role(
     )
 
 
+@router.post("/rbac/check", response_class=HTMLResponse, name="admin_check_rbac")
+async def check_rbac(
+    request: Request,
+    subject_id: str = Form(...),
+    permission: str = Form(...),
+    rbac_service: RBACService = Depends(get_rbac_service),
+    accounts_service: AccountsService = Depends(get_accounts_service),
+):
+    session = _ensure_admin_session(request)
+    if isinstance(session, RedirectResponse):
+        return session
+    t1 = T.time()
+    current_account_id, error_message = await _active_account_selection(accounts_service, session, required=True)
+    rbac_check_result = None
+    if error_message is None:
+        result = await rbac_service.check(
+            account_id=current_account_id,
+            subject_id=subject_id.strip(),
+            required_permission=permission.strip(),
+        )
+        if result.is_err:
+            error = result.unwrap_err()
+            error_message = _error_message(error)
+            log.error(build_log_payload("admin_ui.rbac.check.error", started_at=t1, error=error, account_id=current_account_id, subject_id=subject_id.strip(), permission=permission.strip()))
+        else:
+            rbac_check_result = {
+                "subject_id": subject_id.strip(),
+                "permission": permission.strip(),
+                "has_access": result.unwrap(),
+            }
+            log.info(build_log_payload("admin_ui.rbac.check", started_at=t1, account_id=current_account_id, subject_id=subject_id.strip(), permission=permission.strip(), has_access=result.unwrap()))
+    roles = []
+    assignments = []
+    load_error = None
+    if current_account_id and error_message is None:
+        roles, assignments, load_error = await _rbac_metadata(rbac_service, current_account_id)
+    if load_error is not None and error_message is None:
+        error_message = _error_message(load_error)
+    return _render(
+        request,
+        "rbac.html",
+        page_title="RBAC",
+        authenticated=True,
+        error_message=error_message,
+        success_message=None,
+        roles=roles,
+        assignments=assignments,
+        rbac_check_result=rbac_check_result,
+        current_account_id=current_account_id,
+    )
+
+
 @router.get("/abac", response_class=HTMLResponse, name="admin_abac_page")
 async def abac_page(
     request: Request,
@@ -2247,7 +2486,10 @@ async def create_abac_policy(
     effect: str = Form(...),
     subject: str = Form(...),
     resource: str = Form(...),
-    location: str = Form("*"),
+    location_lat: str = Form(""),
+    location_lng: str = Form(""),
+    location_radius_km: str = Form("1.0"),
+    time_mode: str = Form("wildcard"),
     time_start: str = Form(""),
     time_end: str = Form(""),
     action: str = Form(...),
@@ -2268,7 +2510,10 @@ async def create_abac_policy(
                 effect=effect,
                 subject=subject,
                 resource=resource,
-                location=location,
+                location_lat=location_lat,
+                location_lng=location_lng,
+                location_radius_km=location_radius_km,
+                time_mode=time_mode,
                 time_start=time_start,
                 time_end=time_end,
                 action=action,
@@ -2312,7 +2557,10 @@ async def update_abac_policy(
     effect: str = Form(...),
     subject: str = Form(...),
     resource: str = Form(...),
-    location: str = Form("*"),
+    location_lat: str = Form(""),
+    location_lng: str = Form(""),
+    location_radius_km: str = Form("1.0"),
+    time_mode: str = Form("wildcard"),
     time_start: str = Form(""),
     time_end: str = Form(""),
     action: str = Form(...),
@@ -2333,7 +2581,10 @@ async def update_abac_policy(
                 effect=effect,
                 subject=subject,
                 resource=resource,
-                location=location,
+                location_lat=location_lat,
+                location_lng=location_lng,
+                location_radius_km=location_radius_km,
+                time_mode=time_mode,
                 time_start=time_start,
                 time_end=time_end,
                 action=action,
@@ -2417,7 +2668,8 @@ async def evaluate_abac(
     request: Request,
     subject: str = Form(...),
     resource: str = Form(...),
-    location: str = Form("*"),
+    location_lat: str = Form(""),
+    location_lng: str = Form(""),
     time: str = Form(""),
     action: str = Form(...),
     abac_service: ABACService = Depends(get_abac_service),
@@ -2432,10 +2684,16 @@ async def evaluate_abac(
     evaluation_result = None
     if error_message is None:
         try:
+            location_dto = None
+            if location_lat.strip() and location_lng.strip():
+                location_dto = ABACDTO.GeoPointDTO(
+                    lat=float(location_lat.strip()),
+                    lng=float(location_lng.strip()),
+                )
             dto = ABACDTO.ABACEvaluateDTO(
                 subject=subject.strip(),
                 resource=resource.strip(),
-                location=location.strip() or "*",
+                location=location_dto,
                 time=time.strip() or None,
                 action=action.strip(),
             )
@@ -2486,7 +2744,7 @@ async def ngac_page(
     assignments = []
     associations = []
     load_error = None
-    if current_account_id and error_message is None:
+    if current_account_id:
         nodes, assignments, associations, load_error = await _ngac_metadata(ngac_service, current_account_id)
     if load_error is not None:
         log.error(build_log_payload("admin_ui.ngac.view.error", started_at=t1, error=load_error))
@@ -2548,7 +2806,7 @@ async def create_ngac_node(
     assignments = []
     associations = []
     load_error = None
-    if current_account_id and error_message is None:
+    if current_account_id:
         nodes, assignments, associations, load_error = await _ngac_metadata(ngac_service, current_account_id)
     if load_error is not None and error_message is None:
         error_message = _error_message(load_error)
@@ -2595,7 +2853,7 @@ async def delete_ngac_node(
     assignments = []
     associations = []
     load_error = None
-    if current_account_id and error_message is None:
+    if current_account_id:
         nodes, assignments, associations, load_error = await _ngac_metadata(ngac_service, current_account_id)
     if load_error is not None and error_message is None:
         error_message = _error_message(load_error)
@@ -2644,7 +2902,7 @@ async def add_ngac_assignment(
     assignments = []
     associations = []
     load_error = None
-    if current_account_id and error_message is None:
+    if current_account_id:
         nodes, assignments, associations, load_error = await _ngac_metadata(ngac_service, current_account_id)
     if load_error is not None and error_message is None:
         error_message = _error_message(load_error)
@@ -2693,7 +2951,7 @@ async def remove_ngac_assignment(
     assignments = []
     associations = []
     load_error = None
-    if current_account_id and error_message is None:
+    if current_account_id:
         nodes, assignments, associations, load_error = await _ngac_metadata(ngac_service, current_account_id)
     if load_error is not None and error_message is None:
         error_message = _error_message(load_error)
@@ -2747,7 +3005,7 @@ async def add_ngac_association(
     assignments = []
     associations = []
     load_error = None
-    if current_account_id and error_message is None:
+    if current_account_id:
         nodes, assignments, associations, load_error = await _ngac_metadata(ngac_service, current_account_id)
     if load_error is not None and error_message is None:
         error_message = _error_message(load_error)
@@ -2794,7 +3052,7 @@ async def remove_ngac_association(
     assignments = []
     associations = []
     load_error = None
-    if current_account_id and error_message is None:
+    if current_account_id:
         nodes, assignments, associations, load_error = await _ngac_metadata(ngac_service, current_account_id)
     if load_error is not None and error_message is None:
         error_message = _error_message(load_error)
@@ -2845,7 +3103,7 @@ async def check_ngac_access(
     assignments = []
     associations = []
     load_error = None
-    if current_account_id and error_message is None:
+    if current_account_id:
         nodes, assignments, associations, load_error = await _ngac_metadata(ngac_service, current_account_id)
     if load_error is not None and error_message is None:
         error_message = _error_message(load_error)

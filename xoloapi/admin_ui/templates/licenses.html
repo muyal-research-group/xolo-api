@@ -77,12 +77,25 @@
                 <td>{{ license.scope }}</td>
                 <td>{{ license.expires_at }}</td>
                 <td>
-                    <form method="post" action="{{ request.url_for('admin_delete_license') }}">
-                        <input type="hidden" name="account_id" value="{{ current_account_id }}">
-                        <input type="hidden" name="username" value="{{ license.username }}">
-                        <input type="hidden" name="scope" value="{{ license.scope }}">
-                        <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100">Delete</button>
-                    </form>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <form method="post" action="{{ request.url_for('admin_rotate_license') }}" class="flex items-center gap-1">
+                            <input type="hidden" name="username" value="{{ license.username }}">
+                            <input type="hidden" name="scope" value="{{ license.scope }}">
+                            <input
+                                class="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-xolo-500 focus:ring-1 focus:ring-xolo-100"
+                                type="text"
+                                name="expires_in"
+                                placeholder="15m"
+                                required>
+                            <button type="submit" class="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 transition hover:bg-amber-100">Rotate</button>
+                        </form>
+                        <form method="post" action="{{ request.url_for('admin_delete_license') }}">
+                            <input type="hidden" name="account_id" value="{{ current_account_id }}">
+                            <input type="hidden" name="username" value="{{ license.username }}">
+                            <input type="hidden" name="scope" value="{{ license.scope }}">
+                            <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100">Delete</button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             {% endfor %}
