@@ -12,7 +12,7 @@
   <a href="https://codecov.io/gh/muyal-research-group/xolo-api">
     <img src="https://codecov.io/gh/muyal-research-group/xolo-api/graph/badge.svg" alt="codecov">
   </a>
-  <img src="https://img.shields.io/badge/version-0.1.0a0-green" alt="version">
+  <img src="https://img.shields.io/badge/dynamic/toml?url=https://raw.githubusercontent.com/muyal-research-group/xolo-api/master/pyproject.toml&query=$.tool.poetry.version&label=version&color=green" alt="version">
   <img src="https://img.shields.io/badge/python-%3E%3D3.10-blue" alt="python">
   <img src="https://img.shields.io/badge/framework-FastAPI-009688" alt="fastapi">
   <img src="https://img.shields.io/badge/database-MongoDB-47A248" alt="mongodb">
