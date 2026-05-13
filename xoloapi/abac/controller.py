@@ -13,7 +13,7 @@ from xoloapi.abac.application.abac_service import ABACService
 from xoloapi.abac.dto import ABACEvaluateDTO, CreateABACPolicyDTO
 from xoloapi.abac.infrastructure.mongo_abac_repository import MongoABACRepository
 from xoloapi.db.constants import CollectionNames
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log = Log(
     name                   = __name__,

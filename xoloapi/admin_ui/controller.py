@@ -35,7 +35,7 @@ from xoloapi.acl.domain.value_objects import PrincipalType as ACLPrincipalType
 from xoloapi.apikeys.controller import get_apikey_service
 from xoloapi.apikeys.domain.value_objects import APIKeyScope
 from xoloapi.licenses.controller import get_licenses_service
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 from xoloapi.middleware.admin import is_valid_admin_token
 from xoloapi.ngac.application.ngac_service import NGACService
 from xoloapi.ngac.controller import get_ngac_service

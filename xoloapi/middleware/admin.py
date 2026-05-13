@@ -5,7 +5,7 @@ from jwt import InvalidTokenError
 import jwt
 
 import xoloapi.config as Cfg
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log = Log(
     name=__name__,

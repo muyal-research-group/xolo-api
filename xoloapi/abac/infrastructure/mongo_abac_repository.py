@@ -21,7 +21,7 @@ from xoloapi.abac.domain.repositories import IABACRepository
 from xoloapi.abac.domain.value_objects import (
     Action, Effect, GeoPoint, Location, Resource, Subject, TimeWindow, TimeWindowMode,
 )
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log = Log(
     name=__name__,

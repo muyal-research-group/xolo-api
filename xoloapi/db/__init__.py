@@ -5,7 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 from xoloapi.log import Log
 
 import xoloapi.config as Cfg
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 # MONGODB_URI = 
 # client                   = MongoClient(MONGODB_URI)
 # MONGO_DATABASE_NAME      = 

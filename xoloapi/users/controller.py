@@ -10,7 +10,7 @@ import commonx.errors as EX
 import xoloapi.config as Cfg
 import xoloapi.middleware as MX
 from xoloapi.accounts.dependencies import require_existing_account
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 from xoloapi.middleware.admin import require_admin_token, require_admin_session_or_token
 from xoloapi.middleware.apikey import require_api_key
 from xoloapi.users.application.users_service import UsersService

@@ -6,7 +6,7 @@ import xoloapi.config as Cfg
 from xoloapi.errors.base import DatabaseError, XoloException
 from xoloapi.rbac.domain.aggregates import Role
 from xoloapi.rbac.domain.repositories import IRoleRepository
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log = Log(
     name=__name__,

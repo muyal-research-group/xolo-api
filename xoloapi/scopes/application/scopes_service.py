@@ -7,7 +7,7 @@ import commonx.errors as EX
 
 import xoloapi.config as Cfg
 import xoloapi.scopes.dto as DTO
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 from xoloapi.licenses.domain.repositories import ILicensesRepository
 from xoloapi.scopes.domain.repositories import IScopesRepository
 

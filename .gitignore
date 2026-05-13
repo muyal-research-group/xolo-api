@@ -9,6 +9,7 @@ scripts/out
 **/log/*
 .coverage
 log/*
+!xoloapi/log/__init__.py
 *.lock
 .env.prod
 .claude

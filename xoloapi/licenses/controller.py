@@ -9,7 +9,7 @@ import xoloapi.config as Cfg
 from xoloapi.accounts.dependencies import require_existing_account
 import xoloapi.licenses.dto as DTO
 from xoloapi.middleware.apikey import require_admin_or_api_key
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 from xoloapi.db import get_collection
 from xoloapi.db.constants import CollectionNames
 from xoloapi.licenses.application.licenses_service import LicensesService

@@ -8,7 +8,7 @@ from xoloapi.acl.domain.aggregates import AccessGrant, ResourcePolicy
 from xoloapi.acl.domain.repositories import IResourcePolicyRepository
 from xoloapi.acl.domain.value_objects import Permission, Principal, PrincipalType
 from xoloapi.errors.base import DatabaseError, XoloException
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log = Log(
     name=__name__,

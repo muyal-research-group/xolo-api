@@ -9,7 +9,7 @@ from commonx.dto.xolo import CreateUserDTO
 from commonx.models.xolo import User
 import commonx.errors as EX
 import xoloapi.config as Cfg
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 from xoloapi.users.domain.repositories import IUsersRepository
 
 log = Log(

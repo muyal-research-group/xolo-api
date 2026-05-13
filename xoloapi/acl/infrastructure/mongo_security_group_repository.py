@@ -7,7 +7,7 @@ import xoloapi.config as Cfg
 from xoloapi.acl.domain.aggregates import GroupMember, SecurityGroup
 from xoloapi.acl.domain.repositories import ISecurityGroupRepository
 from xoloapi.errors.base import DatabaseError, XoloException
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log = Log(
     name=__name__,

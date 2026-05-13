@@ -6,7 +6,7 @@ import xoloapi.config as Cfg
 from xoloapi.errors.base import DatabaseError, NotFoundError, XoloException, AlreadyExistsError
 from xoloapi.ngac.domain.aggregates import NGACAssignment, NGACAssociation, NGACNode
 from xoloapi.ngac.domain.repositories import INGACRepository
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log = Log(
     name=__name__,

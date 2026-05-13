@@ -5,7 +5,7 @@ from xoloapi.log import Log
 import commonx.errors as EX
 import commonx.models.xolo as MX
 import xoloapi.config as Cfg
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 from xoloapi.scopes.dto import AssignScopeDTO, CreateScopeDTO
 

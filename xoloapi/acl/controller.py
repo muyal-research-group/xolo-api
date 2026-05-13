@@ -15,7 +15,7 @@ from xoloapi.acl.dto import CheckDTO, ClaimResourceDTO, GrantOrRevokeDTO, Member
 from xoloapi.acl.infrastructure.mongo_resource_policy_repository import MongoResourcePolicyRepository
 from xoloapi.acl.infrastructure.mongo_security_group_repository import MongoSecurityGroupRepository
 from xoloapi.db.constants import CollectionNames
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 from xoloapi.middleware.apikey import require_api_key
 
 log = Log(

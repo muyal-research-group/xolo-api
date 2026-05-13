@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from xoloapi.db.cache import connect_to_redis, close_redis_connection
 import xoloapi.config  as Cfg
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log            = Log(
         name                   = Cfg.XOLO_LOG_NAME,

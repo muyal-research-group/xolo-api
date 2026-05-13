@@ -14,7 +14,7 @@ from xolo.utils import Utils as XoloUtils
 import commonx.errors as EX
 import xoloapi.config as Cfg
 import xoloapi.dto as DTO
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 from xoloapi.security import Security
 from xoloapi.licenses.application.licenses_service import LicensesService
 import xoloapi.users.dto as UDTO

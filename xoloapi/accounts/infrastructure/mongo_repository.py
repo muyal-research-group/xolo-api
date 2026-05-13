@@ -12,7 +12,7 @@ from xoloapi.errors.base import (
     NotFoundError,
     XoloException,
 )
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log = Log(
     name=__name__,

@@ -17,7 +17,7 @@ from xoloapi.ngac.dto import (
 )
 from xoloapi.ngac.infrastructure.mongo_ngac_repository import MongoNGACRepository
 from xoloapi.db.constants import CollectionNames
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log = Log(
     name                   = __name__,
