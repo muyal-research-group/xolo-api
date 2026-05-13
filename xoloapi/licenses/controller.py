@@ -120,6 +120,23 @@ async def delete_license(
     raise error.to_http_exception()
 
 
+@router.post("/rotate")
+async def rotate_license(
+    account_id: str,
+    dto: DTO.RotateLicenseDTO,
+    _: object = Depends(require_admin_or_api_key("licenses")),
+    licenses_service: LicensesService = Depends(get_licenses_service),
+):
+    t1 = T.time()
+    response = await licenses_service.rotate_license(account_id=account_id, dto=dto)
+    if response.is_ok:
+        log.info(build_log_payload("licenses.rotate", started_at=t1, username=getattr(dto, "username", None)))
+        return response.unwrap()
+    error = response.unwrap_err()
+    log.error(build_log_payload("licenses.rotate.error", started_at=t1, error=error, username=getattr(dto, "username", None)))
+    raise error.to_http_exception()
+
+
 @router.delete("/self")
 async def self_delete_license(
     account_id: str,
