@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from option import Err, NONE, Ok, Option, Result, Some
 from motor.motor_asyncio import AsyncIOMotorCollection
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 from xoloapi.accounts.models import Account
@@ -12,7 +12,7 @@ from xoloapi.errors.base import (
     NotFoundError,
     XoloException,
 )
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log = Log(
     name=__name__,

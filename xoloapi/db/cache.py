@@ -1,9 +1,9 @@
 import redis.asyncio as aioredis  # Importar la versión asyncio
 from typing import Optional
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log = Log(
     name=__name__,

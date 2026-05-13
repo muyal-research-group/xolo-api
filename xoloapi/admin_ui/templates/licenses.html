@@ -5,7 +5,7 @@
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
             <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Licenses</h1>
-            <p class="mt-2 text-sm text-slate-500">Assign licenses, review active entries, and delete them when needed.</p>
+            <p class="mt-2 text-sm text-slate-500">Issue licenses within the selected account. Licenses grant temporary access tokens for users to use specific scopes.</p>
         </div>
     </div>
 </section>
@@ -14,11 +14,23 @@
     <form method="post" action="{{ request.url_for('admin_create_license') }}" class="grid gap-4 md:grid-cols-2">
         <label class="block">
             <span class="mb-2 block text-sm font-medium text-slate-700">Username</span>
-            <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="username" required>
+            <input 
+                class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" 
+                type="text" 
+                name="username" 
+                list="users-list"
+                required>
+            <datalist id="users-list"></datalist>
         </label>
         <label class="block">
             <span class="mb-2 block text-sm font-medium text-slate-700">Scope</span>
-            <input class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" type="text" name="scope" required>
+            <input 
+                class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-xolo-500 focus:ring-2 focus:ring-xolo-100" 
+                type="text" 
+                name="scope" 
+                list="scopes-list"
+                required>
+            <datalist id="scopes-list"></datalist>
         </label>
         <label class="block">
             <span class="mb-2 block text-sm font-medium text-slate-700">Expires in</span>
@@ -65,12 +77,25 @@
                 <td>{{ license.scope }}</td>
                 <td>{{ license.expires_at }}</td>
                 <td>
-                    <form method="post" action="{{ request.url_for('admin_delete_license') }}">
-                        <input type="hidden" name="account_id" value="{{ current_account_id }}">
-                        <input type="hidden" name="username" value="{{ license.username }}">
-                        <input type="hidden" name="scope" value="{{ license.scope }}">
-                        <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100">Delete</button>
-                    </form>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <form method="post" action="{{ request.url_for('admin_rotate_license') }}" class="flex items-center gap-1">
+                            <input type="hidden" name="username" value="{{ license.username }}">
+                            <input type="hidden" name="scope" value="{{ license.scope }}">
+                            <input
+                                class="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-xolo-500 focus:ring-1 focus:ring-xolo-100"
+                                type="text"
+                                name="expires_in"
+                                placeholder="15m"
+                                required>
+                            <button type="submit" class="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 transition hover:bg-amber-100">Rotate</button>
+                        </form>
+                        <form method="post" action="{{ request.url_for('admin_delete_license') }}">
+                            <input type="hidden" name="account_id" value="{{ current_account_id }}">
+                            <input type="hidden" name="username" value="{{ license.username }}">
+                            <input type="hidden" name="scope" value="{{ license.scope }}">
+                            <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100">Delete</button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             {% endfor %}
@@ -80,4 +105,46 @@
     <p class="mt-4 text-sm text-slate-500">No licenses yet for this account.</p>
     {% endif %}
 </section>
+
+<script>
+async function loadDataLists() {
+    const accountId = document.body.getAttribute('data-account-id');
+    if (!accountId) return;
+
+    try {
+        // Fetch users with credentials (includes session cookie)
+        const usersRes = await fetch(`/api/v4/accounts/${accountId}/users/list`, {
+            credentials: 'include'
+        });
+        if (usersRes.ok) {
+            const users = await usersRes.json();
+            const usersList = document.getElementById('users-list');
+            users.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.username;
+                usersList.appendChild(option);
+            });
+        }
+
+        // Fetch scopes with credentials (includes session cookie)
+        const scopesRes = await fetch(`/api/v4/accounts/${accountId}/scopes/list`, {
+            credentials: 'include'
+        });
+        if (scopesRes.ok) {
+            const scopes = await scopesRes.json();
+            const scopesList = document.getElementById('scopes-list');
+            scopes.forEach(scope => {
+                const option = document.createElement('option');
+                option.value = scope.name;
+                scopesList.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading data lists:', error);
+    }
+}
+
+// Load datalists on page load
+document.addEventListener('DOMContentLoaded', loadDataLists);
+</script>
 {% endblock %}

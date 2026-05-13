@@ -1,6 +1,6 @@
 import time as T
 from fastapi import APIRouter, Depends, Response, status
-from xolo.log import Log
+from xoloapi.log import Log
 import xoloapi.config as Cfg
 import xoloapi.db as DbX
 from xoloapi.apikeys.application.apikey_service import APIKeyService
@@ -13,7 +13,7 @@ from xoloapi.apikeys.dto import (
 from xoloapi.apikeys.infrastructure.mongo_repository import MongoAPIKeyRepository
 from xoloapi.accounts.dependencies import require_existing_account
 from xoloapi.db.constants import CollectionNames
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 from xoloapi.middleware.admin import require_admin_token
 
 log = Log(

@@ -53,6 +53,21 @@
 </section>
 {% endif %}
 
+{% if rotated_key %}
+<section class="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Store this rotated API key now</h2>
+    <p class="mt-2 text-sm text-slate-600">The old secret has been invalidated. This new raw key will not be shown again.</p>
+    <div class="mt-4 overflow-x-auto rounded-xl bg-slate-900 px-4 py-3 font-mono text-sm text-slate-100">{{ rotated_key.key }}</div>
+    <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+            <tr><th>Account</th><td>{{ rotated_key.account_id }}</td></tr>
+            <tr><th>Key ID</th><td>{{ rotated_key.key_id }}</td></tr>
+            <tr><th>Prefix</th><td>{{ rotated_key.key_prefix }}</td></tr>
+        </table>
+    </div>
+</section>
+{% endif %}
+
 <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
     <h2 class="text-lg font-semibold text-slate-900">Stored API key metadata</h2>
     {% if current_account_id %}
@@ -86,11 +101,17 @@
                     <td>{{ "yes" if key.is_active else "no" }}</td>
                     <td>{{ key.expires_at or "—" }}</td>
                     <td>
-                        <form method="post" action="{{ request.url_for('admin_delete_apikey') }}">
-                            <input type="hidden" name="account_id" value="{{ current_account_id }}">
-                            <input type="hidden" name="key_id" value="{{ key.key_id }}">
-                            <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100">Delete</button>
-                        </form>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <form method="post" action="{{ request.url_for('admin_rotate_apikey') }}">
+                                <input type="hidden" name="key_id" value="{{ key.key_id }}">
+                                <button type="submit" class="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 transition hover:bg-amber-100">Rotate</button>
+                            </form>
+                            <form method="post" action="{{ request.url_for('admin_delete_apikey') }}">
+                                <input type="hidden" name="account_id" value="{{ current_account_id }}">
+                                <input type="hidden" name="key_id" value="{{ key.key_id }}">
+                                <button type="submit" class="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100">Delete</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}

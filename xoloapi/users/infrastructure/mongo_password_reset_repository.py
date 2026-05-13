@@ -2,11 +2,11 @@ import datetime
 
 from motor.motor_asyncio import AsyncIOMotorCollection
 from option import Err, NONE, Ok, Result, Some
-from xolo.log import Log
+from xoloapi.log import Log
 
 import commonx.errors as EX
 import xoloapi.config as Cfg
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 from xoloapi.users.domain.aggregates import PasswordResetToken
 from xoloapi.users.domain.repositories import IPasswordResetRepository
 

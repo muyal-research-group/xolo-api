@@ -38,6 +38,26 @@ Xolo brings together four complementary access-control styles:
 
 Supporting modules like **accounts**, **users**, **scopes**, **licenses**, **API Keys**, and the **admin UI** make those authorization models usable in real applications.
 
+## Multi-Tenant SaaS Model
+
+Xolo is designed as a **multi-tenant IAM service** where each tenant is an **Account**. This enables:
+
+- **Platform operators** (Xolo admins) to manage accounts and bootstrap API keys
+- **Account owners** (primary users) to manage their own users, scopes, licenses, and authorization policies via API keys
+
+**Key principle:** All resources (users, scopes, licenses, policies) belong to an account. Account owners interact with Xolo via the REST API using account-scoped API keys. The admin UI is reserved for Xolo operators only.
+
+### Account Owner Workflow
+
+1. Xolo admin creates an account and generates an API key with scopes
+2. Account owner uses the API key to:
+   - Create users
+   - Define scopes and assign them to users
+   - Issue licenses for users and scopes
+   - Configure authorization rules (ACL, ABAC, NGAC, RBAC)
+
+All operations are isolated to the account; account owners cannot access other accounts' data.
+
 ## Architecture at a glance
 
 Xolo uses two architectural styles:

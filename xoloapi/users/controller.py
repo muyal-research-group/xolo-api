@@ -3,15 +3,15 @@ from typing import Annotated
 
 from fastapi import Depends, Response, status
 from fastapi.routing import APIRouter
-from xolo.log import Log
+from xoloapi.log import Log
 
 import commonx.errors as EX
 
 import xoloapi.config as Cfg
 import xoloapi.middleware as MX
 from xoloapi.accounts.dependencies import require_existing_account
-from xoloapi.logging import build_log_payload
-from xoloapi.middleware.admin import require_admin_token
+from xoloapi.log.format import build_log_payload
+from xoloapi.middleware.admin import require_admin_token, require_admin_session_or_token
 from xoloapi.middleware.apikey import require_api_key
 from xoloapi.users.application.users_service import UsersService
 from xoloapi.users.dependencies import get_users_service
@@ -42,6 +42,23 @@ async def create_user(
         return response.unwrap()
     error = response.unwrap_err()
     log.error(build_log_payload("users.create.error", started_at=t1, error=error, username=user_dto.username))
+    raise error.to_http_exception()
+
+
+@router.get("/list")
+async def list_users(
+    account_id: str,
+    _: object = Depends(require_admin_session_or_token),
+    users_service: UsersService = Depends(get_users_service),
+):
+    """List all users in the account. Used for dropdowns/autocomplete in forms."""
+    t1 = T.time()
+    response = await users_service.list_users(account_id=account_id)
+    if response.is_ok:
+        log.info(build_log_payload("users.list", started_at=t1, count=len(response.unwrap())))
+        return response.unwrap()
+    error = response.unwrap_err()
+    log.error(build_log_payload("users.list.error", started_at=t1, error=error))
     raise error.to_http_exception()
 
 

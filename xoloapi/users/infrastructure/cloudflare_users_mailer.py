@@ -2,11 +2,11 @@ import asyncio
 
 import requests
 from option import Err, Ok
-from xolo.log import Log
+from xoloapi.log import Log
 
 import commonx.errors as EX
 import xoloapi.config as Cfg
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 from xoloapi.users.domain.services import IUsersMailer
 from xoloapi.users.infrastructure.mail_content import build_password_reset_content, build_welcome_content
 

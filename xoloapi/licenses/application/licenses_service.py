@@ -5,14 +5,14 @@ import humanfriendly as HF
 import jwt
 import option as OP
 from xolo.license import LicenseManager
-from xolo.log import Log
+from xoloapi.log import Log
 from zoneinfo import ZoneInfo
 
 import commonx.errors as EX
 
 import xoloapi.config as Cfg
 import xoloapi.licenses.dto as DTO
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 from xoloapi.licenses.domain.repositories import ILicensesRepository
 
 log = Log(
@@ -105,6 +105,48 @@ class LicensesService:
             return OP.Ok(DTO.DeletedLicenseResponseDTO(ok=result.unwrap_or(False)))
         except Exception as e:
             log.error(build_log_payload("licenses.delete.error", started_at=start_time, error=e, username=getattr(dto, "username", None), scope_name=getattr(dto, "scope", None)))
+            return OP.Err(EX.ServerError(raw_detail=str(e)))
+
+    async def rotate_license(self, account_id: str, dto: DTO.RotateLicenseDTO) -> OP.Result[DTO.AssignLicenseResponseDTO, EX.XError]:
+        try:
+            start_time = T.time()
+            username = dto.username.strip()
+            scope = dto.scope.strip().upper()
+            log.debug(build_log_payload("licenses.rotate.attempt", username=username, scope_name=scope))
+
+            existing = await self.repository.find_by_username_and_scope(account_id=account_id, username=username, scope=scope)
+            if existing.is_err:
+                log.warning(build_log_payload("licenses.rotate.error", started_at=start_time, error=existing.unwrap_err(), username=username, scope_name=scope))
+                return OP.Err(existing.unwrap_err())
+
+            await self.repository.delete_by_username_scope(account_id=account_id, username=username, scope=scope)
+            license_result = self.lm.generate_license(user_id=username, app_id=scope, expires_in=dto.expires_in)
+            if license_result.is_err:
+                error = EX.LicenseCreationError(raw_detail=str(license_result.unwrap_err()))
+                log.error(build_log_payload("licenses.rotate.error", started_at=start_time, error=error, username=username, scope_name=scope))
+                return OP.Err(error)
+
+            license = license_result.unwrap()
+            expires_at = (
+                datetime.now(timezone.utc)
+                + timedelta(seconds=int(HF.parse_timespan(dto.expires_in)))
+            ).astimezone(self.tz)
+            expires_at_str = expires_at.strftime("%Y-%m-%d %H:%M:%S %Z")
+            result = await self.repository.create(
+                account_id=account_id,
+                username=username,
+                license=license,
+                scope=scope,
+                expires_at=expires_at_str,
+            )
+            if result.is_err:
+                log.error(build_log_payload("licenses.rotate.error", started_at=start_time, error=result.unwrap_err(), username=username, scope_name=scope))
+                return OP.Err(result.unwrap_err())
+
+            log.info(build_log_payload("licenses.rotate", started_at=start_time, username=username, scope_name=scope, expires_at=expires_at_str))
+            return OP.Ok(DTO.AssignLicenseResponseDTO(expires_at=expires_at_str, ok=result.unwrap_or(False)))
+        except Exception as e:
+            log.error(build_log_payload("licenses.rotate.error", started_at=start_time, error=e, username=getattr(dto, "username", None), scope_name=getattr(dto, "scope", None)))
             return OP.Err(EX.ServerError(raw_detail=str(e)))
 
     async def assign_license(self, account_id: str, dto: DTO.AssignLicenseDTO) -> OP.Result[DTO.AssignLicenseResponseDTO, EX.XError]:

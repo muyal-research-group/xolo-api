@@ -1,6 +1,6 @@
 import time as T
 from fastapi import APIRouter, Depends, Response, status
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 import xoloapi.db as DbX
@@ -339,3 +339,34 @@ async def get_effective_permissions(
     perms = result.unwrap()
     log.info({"action": "rbac.effective_perms", "subject": subject_id, "count": len(perms), "time": round(T.time() - t1, 4)})
     return EffectivePermissionsDTO(subject_id=subject_id, permissions=perms)
+
+
+# ── Data Discovery Endpoints ──────────────────────────────────────────────────
+
+@router.get("/roles/list", status_code=status.HTTP_200_OK)
+async def list_roles_discovery(
+    account_id: str,
+    _:       object      = Depends(require_api_key("rbac")),
+    service: RBACService = Depends(get_rbac_service),
+):
+    t1     = T.time()
+    result = await service.list_roles_discovery(account_id)
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error({"action": "rbac.list_roles_discovery.error", "error": str(err)})
+        raise err.to_http_exception()
+    roles = result.unwrap()
+    log.info({"action": "rbac.list_roles_discovery", "role_count": len(roles), "time": round(T.time() - t1, 4)})
+    return roles
+
+
+@router.get("/permissions/list", status_code=status.HTTP_200_OK)
+async def list_permissions_discovery(
+    account_id: str,
+    _:       object      = Depends(require_api_key("rbac")),
+):
+    t1 = T.time()
+    # Return all available permissions (can be expanded based on your permission model)
+    permissions = [{"id": "read", "name": "read"}, {"id": "write", "name": "write"}, {"id": "delete", "name": "delete"}, {"id": "admin", "name": "admin"}]
+    log.info({"action": "rbac.list_permissions_discovery", "permission_count": len(permissions), "time": round(T.time() - t1, 4)})
+    return permissions

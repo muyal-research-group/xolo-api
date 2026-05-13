@@ -2,13 +2,13 @@ import time as T
 
 from fastapi import Depends, Response, status
 from fastapi.routing import APIRouter
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 from xoloapi.accounts.dependencies import require_existing_account
 import xoloapi.scopes.dto as DTO
-from xoloapi.middleware.admin import require_admin_token
-from xoloapi.logging import build_log_payload
+from xoloapi.middleware.apikey import require_admin_or_api_key
+from xoloapi.log.format import build_log_payload
 from xoloapi.db import get_collection
 from xoloapi.db.constants import CollectionNames
 from xoloapi.licenses.infrastructure.mongo_repository import MongoLicensesRepository
@@ -44,7 +44,7 @@ def get_scopes_service() -> ScopesService:
 @router.get("")
 async def list_scopes(
     account_id: str,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_admin_or_api_key("scopes")),
     scopes_service: ScopesService = Depends(get_scopes_service),
 ):
     t1 = T.time()
@@ -60,7 +60,7 @@ async def list_scopes(
 @router.get("/assignments")
 async def list_scope_assignments(
     account_id: str,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_admin_or_api_key("scopes")),
     scopes_service: ScopesService = Depends(get_scopes_service),
 ):
     t1 = T.time()
@@ -73,11 +73,29 @@ async def list_scope_assignments(
     raise err.to_http_exception()
 
 
+@router.get("/list")
+async def list_scopes_discovery(
+    account_id: str,
+    _: object = Depends(require_admin_or_api_key("scopes")),
+    scopes_service: ScopesService = Depends(get_scopes_service),
+):
+    """List all scopes for data discovery (dropdowns/autocomplete). Same as GET / but clear intent."""
+    t1 = T.time()
+    response = await scopes_service.list_scopes(account_id=account_id)
+    if response.is_ok:
+        scopes = response.unwrap()
+        log.info(build_log_payload("scopes.discovery.list", started_at=t1, scope_count=len(scopes)))
+        return scopes
+    err = response.unwrap_err()
+    log.error(build_log_payload("scopes.discovery.list.error", started_at=t1, error=err))
+    raise err.to_http_exception()
+
+
 @router.post("")
 async def create_scope(
     account_id: str,
     dto: DTO.CreateScopeDTO,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_admin_or_api_key("scopes")),
     scopes_service: ScopesService = Depends(get_scopes_service),
 ):
     t1 = T.time()
@@ -94,7 +112,7 @@ async def create_scope(
 async def assign_scope(
     account_id: str,
     dto: DTO.AssignScopeDTO,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_admin_or_api_key("scopes")),
     scopes_service: ScopesService = Depends(get_scopes_service),
 ):
     t1 = T.time()
@@ -126,7 +144,7 @@ async def assign_scope(
 async def unassign_scope(
     account_id: str,
     dto: DTO.AssignScopeDTO,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_admin_or_api_key("scopes")),
     scopes_service: ScopesService = Depends(get_scopes_service),
 ):
     t1 = T.time()
@@ -143,7 +161,7 @@ async def unassign_scope(
 async def delete_scope(
     account_id: str,
     dto: DTO.CreateScopeDTO,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_admin_or_api_key("scopes")),
     scopes_service: ScopesService = Depends(get_scopes_service),
 ):
     t1 = T.time()

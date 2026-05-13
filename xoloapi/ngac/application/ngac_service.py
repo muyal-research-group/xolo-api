@@ -82,6 +82,7 @@ class NGACService:
         to_node   = to_result.unwrap()
 
         allowed_targets = VALID_ASSIGNMENT_TARGETS.get(from_node.node_type, set())
+        
         if to_node.node_type not in allowed_targets:
             return Err(ValidationError(
                 f"Cannot assign {from_node.node_type} → {to_node.node_type}. "

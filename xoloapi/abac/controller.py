@@ -1,6 +1,6 @@
 import time as T
 from fastapi import APIRouter, Depends, Response, status
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 import xoloapi.db as DbX
@@ -13,7 +13,7 @@ from xoloapi.abac.application.abac_service import ABACService
 from xoloapi.abac.dto import ABACEvaluateDTO, CreateABACPolicyDTO
 from xoloapi.abac.infrastructure.mongo_abac_repository import MongoABACRepository
 from xoloapi.db.constants import CollectionNames
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log = Log(
     name                   = __name__,
@@ -157,3 +157,58 @@ async def evaluate(
         )
     )
     return decision.model_dump()
+
+
+# ── Data Discovery Endpoints ──────────────────────────────────────────────────
+
+@router.get("/policies/list", status_code=status.HTTP_200_OK)
+async def list_policies_discovery(
+    account_id: str,
+    _:       object      = Depends(require_api_key("abac")),
+    service: ABACService = Depends(get_abac_service),
+):
+    t1     = T.time()
+    result = await service.list_policies(account_id)
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error(build_log_payload("abac.list_policies_discovery.error", started_at=t1, error=err))
+        raise err.to_http_exception()
+    policies = result.unwrap()
+    log.info(build_log_payload("abac.list_policies_discovery", started_at=t1, policy_count=len(policies)))
+    return [{"id": p.policy_id, "name": p.name} for p in policies]
+
+
+@router.get("/subjects/list", status_code=status.HTTP_200_OK)
+async def list_subjects_discovery(
+    account_id: str,
+    _:       object      = Depends(require_api_key("abac")),
+):
+    t1 = T.time()
+    # Return placeholder subjects for now - can be extended
+    subjects = []
+    log.info(build_log_payload("abac.list_subjects_discovery", started_at=t1, subject_count=len(subjects)))
+    return subjects
+
+
+@router.get("/resources/list", status_code=status.HTTP_200_OK)
+async def list_abac_resources_discovery(
+    account_id: str,
+    _:       object      = Depends(require_api_key("abac")),
+):
+    t1 = T.time()
+    # Return placeholder resources for now - can be extended
+    resources = []
+    log.info(build_log_payload("abac.list_resources_discovery", started_at=t1, resource_count=len(resources)))
+    return resources
+
+
+@router.get("/locations/list", status_code=status.HTTP_200_OK)
+async def list_locations_discovery(
+    account_id: str,
+    _:       object      = Depends(require_api_key("abac")),
+):
+    t1 = T.time()
+    # Return placeholder locations for now - can be extended
+    locations = []
+    log.info(build_log_payload("abac.list_locations_discovery", started_at=t1, location_count=len(locations)))
+    return locations

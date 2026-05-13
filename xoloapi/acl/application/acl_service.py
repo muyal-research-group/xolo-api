@@ -273,3 +273,11 @@ class ACLService:
                 total_pages = shared_pages,
             ),
         ))
+
+    async def list_resources(self, account_id: str) -> Result[list[dict], XoloException]:
+        """List all resources in an account for data discovery."""
+        result = await self.policy_repo.find_all_resources(account_id)
+        if result.is_err:
+            return Err(result.unwrap_err())
+        policies = result.unwrap()
+        return Ok([{"id": p.resource_id, "name": p.resource_id} for p in policies])

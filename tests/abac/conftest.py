@@ -5,7 +5,6 @@ Requires:
   - MongoDB reachable at mongodb://localhost:27018
   - Redis reachable (for the FastAPI lifespan in controller tests)
 """
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -18,9 +17,8 @@ from xoloapi.accounts.dto import CreateAccountDTO
 from xoloapi.accounts.infrastructure.mongo_repository import MongoAccountsRepository
 from xoloapi.apikeys.domain.aggregates import APIKey
 from xoloapi.apikeys.domain.value_objects import APIKeyScope
-from xoloapi.abac.evaluator import ABACEvaluator
-from xoloapi.abac.repository import ABACRepository
-from xoloapi.abac.service import ABACService
+from xoloapi.abac.application.abac_service import ABACService
+from xoloapi.abac.infrastructure.mongo_abac_repository import MongoABACRepository
 from xoloapi.db.constants import CollectionNames
 
 _MONGO_URI  = "mongodb://localhost:27018"
@@ -57,7 +55,7 @@ async def abac_repo():
     db     = client[_DB_NAME]
     await db.drop_collection(_COLLECTION)
     await db.drop_collection(CollectionNames.ACCOUNTS_COLLECTION_NAME)
-    yield ABACRepository(db=db)
+    yield MongoABACRepository(db=db, collection_name=_COLLECTION)
     await db.drop_collection(_COLLECTION)
     await db.drop_collection(CollectionNames.ACCOUNTS_COLLECTION_NAME)
     client.close()
@@ -65,7 +63,7 @@ async def abac_repo():
 
 @pytest_asyncio.fixture
 async def abac_service(abac_repo):
-    yield ABACService(repository=abac_repo, evaluator=ABACEvaluator())
+    yield ABACService(repository=abac_repo)
 
 
 @pytest_asyncio.fixture

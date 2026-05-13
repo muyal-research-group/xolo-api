@@ -2,13 +2,13 @@ import time as T
 
 from fastapi import Depends, Response, status
 from fastapi.routing import APIRouter
-from xolo.log import Log
+from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 from xoloapi.accounts.application.accounts_service import AccountsService
 from xoloapi.accounts.dependencies import get_accounts_service
 from xoloapi.accounts.dto import CreateAccountDTO
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 from xoloapi.middleware.admin import require_admin_token
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])

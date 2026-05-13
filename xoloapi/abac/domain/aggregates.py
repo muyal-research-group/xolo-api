@@ -3,7 +3,7 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict
 
 from xoloapi.abac.domain.value_objects import (
-    Action, Effect, Location, Resource, Subject, TimeWindow, WILDCARD,
+    Action, Effect, GeoPoint, Location, Resource, Subject, TimeWindow,
 )
 
 
@@ -12,7 +12,7 @@ class ABACAccessRequest(BaseModel):
 
     subject:  str
     resource: str
-    location: str = WILDCARD
+    location: Optional[GeoPoint] = None
     time:     Optional[str] = None
     action:   str
 

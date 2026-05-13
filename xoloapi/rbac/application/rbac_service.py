@@ -232,3 +232,11 @@ class RBACService:
         all_roles  = {r.role_id: r for r in all_result.unwrap()}
         effective  = self._domain.resolve_effective_permissions(roles_result.unwrap(), all_roles)
         return Ok(sorted(effective))
+
+    async def list_roles_discovery(self, account_id: str) -> Result[list[dict], XoloException]:
+        """List all roles for data discovery."""
+        result = await self._roles.find_all(account_id)
+        if result.is_err:
+            return result
+        roles = result.unwrap()
+        return Ok([{"id": r.role_id, "name": r.name} for r in roles])

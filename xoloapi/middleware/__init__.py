@@ -1,17 +1,16 @@
 from fastapi import Depends,Header, Request
 from fastapi.security import OAuth2PasswordBearer
-from typing import Annotated,Type,Callable,TypeVar,Tuple,Optional
-import jwt
+from typing import Annotated,Optional
 from jwt import InvalidTokenError
 import xoloapi.services as SX
 from xoloapi.security import Security
 import xoloapi.errors as EX
 import xoloapi.dto as DTO
-from xolo.log import Log
+from xoloapi.log import Log
 from xoloapi.users.dependencies import get_users_service as get_user_service
 
 import xoloapi.config as Cfg
-from xoloapi.logging import build_log_payload
+from xoloapi.log.format import build_log_payload
 
 log            = Log(
         name                   = __name__,
