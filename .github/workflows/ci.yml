@@ -42,7 +42,11 @@ jobs:
         run: pip install poetry
 
       - name: Install dependencies
-        run: poetry install --with dev
+        run: |
+          poetry install --with dev
+          poetry lock
+          poetry install --with dev --no-root
+
 
       - name: Run test suite with coverage
         run: |
