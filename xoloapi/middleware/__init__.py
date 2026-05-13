@@ -1,7 +1,6 @@
 from fastapi import Depends,Header, Request
 from fastapi.security import OAuth2PasswordBearer
-from typing import Annotated,Type,Callable,TypeVar,Tuple,Optional
-import jwt
+from typing import Annotated,Optional
 from jwt import InvalidTokenError
 import xoloapi.services as SX
 from xoloapi.security import Security
