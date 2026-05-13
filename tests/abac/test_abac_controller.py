@@ -22,7 +22,6 @@ _ALLOW_PAYLOAD = {
         {
             "subject":  "Teacher",
             "resource": "Grades",
-            "location": "*",
             "action":   "read",
         }
     ],
@@ -126,7 +125,6 @@ async def test_evaluate_allow(abac_client: AsyncClient):
     res = await abac_client.post(_account_path("/evaluate"), json={
         "subject":  "Teacher",
         "resource": "Grades",
-        "location": "Campus",
         "action":   "read",
     })
     assert res.status_code == 200
@@ -188,16 +186,17 @@ async def test_evaluate_with_time_window(abac_client: AsyncClient):
             "subject":    "Doctor",
             "resource":   "Chart",
             "action":     "read",
-            "time_start": "09:00",
-            "time_end":   "17:00",
+            "time_mode":  "datetime",
+            "time_start": "2026-01-01T09:00",
+            "time_end":   "2026-12-31T17:00",
         }],
     })
 
     inside = await abac_client.post(_account_path("/evaluate"), json={
-        "subject": "Doctor", "resource": "Chart", "action": "read", "time": "12:00"
+        "subject": "Doctor", "resource": "Chart", "action": "read", "time": "2026-06-15T12:00"
     })
     outside = await abac_client.post(_account_path("/evaluate"), json={
-        "subject": "Doctor", "resource": "Chart", "action": "read", "time": "20:00"
+        "subject": "Doctor", "resource": "Chart", "action": "read", "time": "2027-01-01T20:00"
     })
 
     assert inside.json()["allowed"] is True
