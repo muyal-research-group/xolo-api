@@ -6,7 +6,7 @@ from xoloapi.abac.domain.aggregates import ABACAccessRequest, ABACDecision, ABAC
 from xoloapi.abac.domain.repositories import IABACRepository
 from xoloapi.abac.domain.services import ABACEvaluator
 from xoloapi.abac.domain.value_objects import (
-    Action, Effect, Location, Resource, Subject, TimeWindow, WILDCARD,
+    Action, Effect, GeoPoint, Location, Resource, Subject, TimeWindow,
 )
 from xoloapi.abac.dto import ABACEvaluateDTO, CreateABACPolicyDTO
 
@@ -24,8 +24,11 @@ class ABACService:
                 event_id = f"ev-{generate(size=8)}",
                 subject  = Subject(value=ev.subject),
                 resource = Resource(value=ev.resource),
-                location = Location(value=ev.location),
-                time     = TimeWindow(start=ev.time_start, end=ev.time_end),
+                location = Location(
+                    center=GeoPoint(lat=ev.location.lat, lng=ev.location.lng) if ev.location else None,
+                    radius_km=ev.location.radius_km if ev.location else 1.0,
+                ),
+                time     = TimeWindow(mode=ev.time_mode, start=ev.time_start, end=ev.time_end),
                 action   = Action(value=ev.action),
             )
             for ev in dto.events
@@ -61,8 +64,11 @@ class ABACService:
                 event_id = f"ev-{generate(size=8)}",
                 subject  = Subject(value=ev.subject),
                 resource = Resource(value=ev.resource),
-                location = Location(value=ev.location),
-                time     = TimeWindow(start=ev.time_start, end=ev.time_end),
+                location = Location(
+                    center=GeoPoint(lat=ev.location.lat, lng=ev.location.lng) if ev.location else None,
+                    radius_km=ev.location.radius_km if ev.location else 1.0,
+                ),
+                time     = TimeWindow(mode=ev.time_mode, start=ev.time_start, end=ev.time_end),
                 action   = Action(value=ev.action),
             )
             for ev in dto.events
@@ -87,7 +93,7 @@ class ABACService:
         request  = ABACAccessRequest(
             subject  = dto.subject,
             resource = dto.resource,
-            location = dto.location,
+            location = GeoPoint(lat=dto.location.lat, lng=dto.location.lng) if dto.location else None,
             time     = dto.time,
             action   = dto.action,
         )
