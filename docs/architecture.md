@@ -29,15 +29,28 @@ Responsibilities:
 - **repository**: persistence and query logic
 - **db**: MongoDB and Redis client access
 
+Common examples:
+
+- `accounts`
+- `users`
+- `scopes`
+- `licenses`
+- `apikeys`
+- `acl`
+- `rbac`
+
 ### 2. Vertical subsystems
 
 Used for:
 
 - `xoloapi/abac/`
 - `xoloapi/ngac/`
-- `xoloapi/policies/`
 
 These packages keep their own controller/application/domain/infrastructure structure or local service composition so subsystem logic stays together.
+
+`admin_ui` is a small exception: it is mostly controller- and template-driven rather than a full domain package.
+
+For a module-by-module view of the feature packages under `xoloapi/`, see [Project structure](project-structure.md).
 
 ## Error handling convention
 
