@@ -74,13 +74,15 @@ The notable exception is `xoloapi/policies/`, where module-level singletons are 
 
 Controllers and services log structured payloads built through:
 
-- `xoloapi.logging.build_log_payload()`
+- `xoloapi.log.format.build_log_payload()`
 
 The common pattern is:
 
 - `info` on success
 - `error` on failure
 - include action names, identifiers, and elapsed time
+
+For the full log-line shape and field reference, see [Logging](logging.md).
 
 ## Configuration model
 
