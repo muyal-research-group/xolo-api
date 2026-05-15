@@ -100,6 +100,8 @@ Cloudflare-specific:
 | `XOLO_LOG_WHEN` | rotation unit |
 | `XOLO_LOG_PATH` | log directory |
 
+For the structured log payload and examples, see [Logging](logging.md).
+
 ## Recommended local-development posture
 
 For local development, prefer:

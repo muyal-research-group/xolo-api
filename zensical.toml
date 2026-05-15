@@ -21,6 +21,7 @@ nav = [
   },
   { Operations = [
       { Configuration = "configuration.md" },
+      { Logging = "logging.md" },
       { Deployment = "deployment.md" },
     ]
   },
