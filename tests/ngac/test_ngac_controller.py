@@ -159,7 +159,6 @@ async def test_remove_assignment_204(ngac_client: AsyncClient):
         method = "DELETE",
         url    = _path("/assign"),
         json   = {"from_id": u_id, "to_id": ua_id}
-        # "/api/v4/ngac/assign" 
     )
     assert res.status_code == 204
 
@@ -331,9 +330,9 @@ async def test_check_access_and_rule_denied(ngac_client: AsyncClient):
 async def test_unauthenticated_request_returns_401(unauthenticated_ngac_client: AsyncClient):
     for method, path in [
         ("GET",  _path("/nodes")),
-        # ("POST", "/api/v4/ngac/nodes"),
-        # ("POST", "/api/v4/ngac/assign"),
-        # ("POST", "/api/v4/ngac/check"),
+        ("POST", _path("/nodes")),
+        ("POST", _path("/assign")),
+        ("POST", _path("/check")),
     ]:
         res = await getattr(unauthenticated_ngac_client, method.lower())(path)
         assert res.status_code == 401, f"{method} {path} should require auth"

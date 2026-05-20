@@ -1,55 +1,72 @@
 import pytest
-from xoloapi.abac.dto import CreateABACEventDTO, CreateABACPolicyDTO, ABACEvaluateDTO, GeoPointDTO, GeoZoneDTO
+from nanoid import generate
 from xoloapi.abac.application.abac_service import ABACService
-from xoloapi.abac.domain.value_objects import Effect, TimeWindowMode
+from xoloapi.abac.domain.aggregates import ABACAccessRequest, ABACEvent
+from xoloapi.abac.domain.value_objects import (
+    Action, Effect, GeoPoint, Location, Resource, Subject, TimeWindow, TimeWindowMode,
+)
 from tests.abac.conftest import ACCOUNT_ID
 
-_NYC  = GeoZoneDTO(lat=40.7128, lng=-74.0060, radius_km=1.0)
-_NYC_POINT  = GeoPointDTO(lat=40.7128, lng=-74.0060)
-_LA_POINT   = GeoPointDTO(lat=34.0522, lng=-118.2437)
+_NYC       = Location(center=GeoPoint(lat=40.7128, lng=-74.0060), radius_km=1.0)
+_NYC_POINT = GeoPoint(lat=40.7128, lng=-74.0060)
+_LA_POINT  = GeoPoint(lat=34.0522, lng=-118.2437)
+
+
+def _make_event(
+    subject: str = "Teacher",
+    resource: str = "Grades",
+    location: Location | None = None,
+    time_mode: TimeWindowMode = TimeWindowMode.WILDCARD,
+    time_start: str | None = None,
+    time_end: str | None = None,
+    action: str = "read",
+) -> ABACEvent:
+    return ABACEvent(
+        event_id = f"ev-{generate(size=6)}",
+        subject  = Subject(value=subject),
+        resource = Resource(value=resource),
+        location = location if location is not None else Location(),
+        time     = TimeWindow(mode=time_mode, start=time_start, end=time_end),
+        action   = Action(value=action),
+    )
 
 
 def _allow_policy(
     subject: str = "Teacher",
     resource: str = "Grades",
-    location: GeoZoneDTO | None = None,
+    location: Location | None = None,
     time_mode: TimeWindowMode = TimeWindowMode.WILDCARD,
     time_start: str | None = None,
     time_end: str | None = None,
     action: str = "read",
-) -> CreateABACPolicyDTO:
-    return CreateABACPolicyDTO(
-        name   = "Allow Policy",
-        effect = Effect.ALLOW,
-        events = [CreateABACEventDTO(
-            subject    = subject,
-            resource   = resource,
-            location   = location,
-            time_mode  = time_mode,
-            time_start = time_start,
-            time_end   = time_end,
-            action     = action,
-        )],
+) -> tuple[str, Effect, list[ABACEvent]]:
+    return (
+        "Allow Policy",
+        Effect.ALLOW,
+        [_make_event(subject=subject, resource=resource, location=location,
+                     time_mode=time_mode, time_start=time_start, time_end=time_end, action=action)],
     )
 
 
-def _deny_policy(subject: str = "Teacher", resource: str = "Grades", action: str = "read") -> CreateABACPolicyDTO:
-    return CreateABACPolicyDTO(
-        name   = "Deny Policy",
-        effect = Effect.DENY,
-        events = [CreateABACEventDTO(subject=subject, resource=resource, action=action)],
+def _deny_policy(subject: str = "Teacher", resource: str = "Grades", action: str = "read") -> tuple[str, Effect, list[ABACEvent]]:
+    return (
+        "Deny Policy",
+        Effect.DENY,
+        [_make_event(subject=subject, resource=resource, action=action)],
     )
 
 
-def _request(subject: str = "Teacher", resource: str = "Grades", action: str = "read", **kw) -> ABACEvaluateDTO:
-    return ABACEvaluateDTO(subject=subject, resource=resource, action=action, **kw)
+def _request(subject: str = "Teacher", resource: str = "Grades", action: str = "read",
+             location: GeoPoint | None = None, time: str | None = None) -> ABACAccessRequest:
+    return ABACAccessRequest(subject=subject, resource=resource, action=action,
+                             location=location, time=time)
 
 
 # ── CRUD ───────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_create_policy_returns_generated_id(abac_service: ABACService):
-    result = await abac_service.create_policy(ACCOUNT_ID, _allow_policy())
+    result = await abac_service.create_policy(ACCOUNT_ID, *_allow_policy())
     assert result.is_ok
     policy_id = result.unwrap()
     assert policy_id.startswith("ap-")
@@ -64,8 +81,8 @@ async def test_list_policies_empty(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_list_policies_returns_created(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy())
-    await abac_service.create_policy(ACCOUNT_ID, _deny_policy())
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy())
+    await abac_service.create_policy(ACCOUNT_ID, *_deny_policy())
 
     result = await abac_service.list_policies(ACCOUNT_ID)
     assert result.is_ok
@@ -74,7 +91,7 @@ async def test_list_policies_returns_created(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_get_policy_round_trip(abac_service: ABACService):
-    policy_id = (await abac_service.create_policy(ACCOUNT_ID, _allow_policy())).unwrap()
+    policy_id = (await abac_service.create_policy(ACCOUNT_ID, *_allow_policy())).unwrap()
 
     result = await abac_service.get_policy(ACCOUNT_ID, policy_id)
     assert result.is_ok
@@ -91,7 +108,7 @@ async def test_get_nonexistent_policy_returns_err(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_delete_policy(abac_service: ABACService):
-    policy_id = (await abac_service.create_policy(ACCOUNT_ID, _allow_policy())).unwrap()
+    policy_id = (await abac_service.create_policy(ACCOUNT_ID, *_allow_policy())).unwrap()
 
     del_result = await abac_service.delete_policy(ACCOUNT_ID, policy_id)
     assert del_result.is_ok
@@ -102,7 +119,7 @@ async def test_delete_policy(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_events_get_generated_ids(abac_service: ABACService):
-    policy_id = (await abac_service.create_policy(ACCOUNT_ID, _allow_policy())).unwrap()
+    policy_id = (await abac_service.create_policy(ACCOUNT_ID, *_allow_policy())).unwrap()
     policy    = (await abac_service.get_policy(ACCOUNT_ID, policy_id)).unwrap()
 
     assert len(policy.events) == 1
@@ -113,7 +130,7 @@ async def test_events_get_generated_ids(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_allow_on_match(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy())
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy())
 
     result = await abac_service.evaluate(ACCOUNT_ID, _request())
     assert result.is_ok
@@ -124,7 +141,7 @@ async def test_evaluate_allow_on_match(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_deny_on_match(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _deny_policy())
+    await abac_service.create_policy(ACCOUNT_ID, *_deny_policy())
 
     result = await abac_service.evaluate(ACCOUNT_ID, _request())
     assert result.is_ok
@@ -133,7 +150,7 @@ async def test_evaluate_deny_on_match(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_default_deny_when_no_policy_matches(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(subject="Admin"))
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(subject="Admin"))
 
     result = await abac_service.evaluate(ACCOUNT_ID, _request(subject="Teacher"))
     assert result.is_ok
@@ -153,8 +170,8 @@ async def test_evaluate_no_policies_returns_deny(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_deny_overrides_allow(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy())
-    await abac_service.create_policy(ACCOUNT_ID, _deny_policy())
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy())
+    await abac_service.create_policy(ACCOUNT_ID, *_deny_policy())
 
     result = await abac_service.evaluate(ACCOUNT_ID, _request())
     assert result.is_ok
@@ -165,7 +182,7 @@ async def test_evaluate_deny_overrides_allow(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_wildcard_location_matches_any(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(location=None))
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(location=None))
 
     for loc in [None, _NYC_POINT, _LA_POINT]:
         result = await abac_service.evaluate(ACCOUNT_ID, _request(location=loc))
@@ -175,7 +192,7 @@ async def test_evaluate_wildcard_location_matches_any(abac_service: ABACService)
 
 @pytest.mark.asyncio
 async def test_evaluate_specific_location_blocks_distant(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(location=_NYC))
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(location=_NYC))
 
     result = await abac_service.evaluate(ACCOUNT_ID, _request(location=_LA_POINT))
     assert result.is_ok
@@ -184,7 +201,7 @@ async def test_evaluate_specific_location_blocks_distant(abac_service: ABACServi
 
 @pytest.mark.asyncio
 async def test_evaluate_specific_location_allows_nearby(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(location=_NYC))
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(location=_NYC))
 
     result = await abac_service.evaluate(ACCOUNT_ID, _request(location=_NYC_POINT))
     assert result.is_ok
@@ -193,7 +210,7 @@ async def test_evaluate_specific_location_allows_nearby(abac_service: ABACServic
 
 @pytest.mark.asyncio
 async def test_evaluate_no_request_location_passes_geo_policy(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(location=_NYC))
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(location=_NYC))
 
     result = await abac_service.evaluate(ACCOUNT_ID, _request(location=None))
     assert result.is_ok
@@ -204,7 +221,7 @@ async def test_evaluate_no_request_location_passes_geo_policy(abac_service: ABAC
 
 @pytest.mark.asyncio
 async def test_evaluate_wildcard_time_matches_any(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy())
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy())
 
     result = await abac_service.evaluate(ACCOUNT_ID, _request(time=None))
     assert result.is_ok
@@ -215,7 +232,7 @@ async def test_evaluate_wildcard_time_matches_any(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_datetime_inside_grants(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(
         time_mode=TimeWindowMode.DATETIME,
         time_start="2026-01-01T09:00", time_end="2026-12-31T17:00",
     ))
@@ -225,7 +242,7 @@ async def test_evaluate_datetime_inside_grants(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_datetime_boundary_grants(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(
         time_mode=TimeWindowMode.DATETIME,
         time_start="2026-01-01T09:00", time_end="2026-12-31T17:00",
     ))
@@ -236,7 +253,7 @@ async def test_evaluate_datetime_boundary_grants(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_datetime_outside_denies(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(
         time_mode=TimeWindowMode.DATETIME,
         time_start="2026-01-01T09:00", time_end="2026-12-31T17:00",
     ))
@@ -249,7 +266,7 @@ async def test_evaluate_datetime_outside_denies(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_time_of_day_inside_grants(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(
         time_mode=TimeWindowMode.TIME_OF_DAY,
         time_start="09:00", time_end="17:00",
     ))
@@ -259,7 +276,7 @@ async def test_evaluate_time_of_day_inside_grants(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_time_of_day_outside_denies(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(
         time_mode=TimeWindowMode.TIME_OF_DAY,
         time_start="09:00", time_end="17:00",
     ))
@@ -269,7 +286,7 @@ async def test_evaluate_time_of_day_outside_denies(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_time_of_day_midnight_span_grants(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(
         time_mode=TimeWindowMode.TIME_OF_DAY,
         time_start="22:00", time_end="06:00",
     ))
@@ -280,7 +297,7 @@ async def test_evaluate_time_of_day_midnight_span_grants(abac_service: ABACServi
 
 @pytest.mark.asyncio
 async def test_evaluate_time_of_day_midnight_span_outside_denies(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(
         time_mode=TimeWindowMode.TIME_OF_DAY,
         time_start="22:00", time_end="06:00",
     ))
@@ -291,7 +308,7 @@ async def test_evaluate_time_of_day_midnight_span_outside_denies(abac_service: A
 
 @pytest.mark.asyncio
 async def test_evaluate_time_of_day_none_request_passes(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(
         time_mode=TimeWindowMode.TIME_OF_DAY,
         time_start="09:00", time_end="17:00",
     ))
@@ -303,7 +320,7 @@ async def test_evaluate_time_of_day_none_request_passes(abac_service: ABACServic
 
 @pytest.mark.asyncio
 async def test_evaluate_date_inside_grants(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(
         time_mode=TimeWindowMode.DATE,
         time_start="2026-01-01", time_end="2026-12-31",
     ))
@@ -313,7 +330,7 @@ async def test_evaluate_date_inside_grants(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_date_outside_denies(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(
         time_mode=TimeWindowMode.DATE,
         time_start="2026-01-01", time_end="2026-12-31",
     ))
@@ -323,7 +340,7 @@ async def test_evaluate_date_outside_denies(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_date_any_time_of_day_grants(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(
         time_mode=TimeWindowMode.DATE,
         time_start="2026-06-15", time_end="2026-06-15",
     ))
@@ -334,7 +351,7 @@ async def test_evaluate_date_any_time_of_day_grants(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_date_none_request_passes(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(
         time_mode=TimeWindowMode.DATE,
         time_start="2026-01-01", time_end="2026-12-31",
     ))
@@ -346,7 +363,7 @@ async def test_evaluate_date_none_request_passes(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_action_mismatch_denies(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(action="read"))
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(action="read"))
 
     result = await abac_service.evaluate(ACCOUNT_ID, _request(action="write"))
     assert result.is_ok
@@ -355,7 +372,7 @@ async def test_evaluate_action_mismatch_denies(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_evaluate_action_case_insensitive(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy(action="READ"))
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy(action="READ"))
 
     result = await abac_service.evaluate(ACCOUNT_ID, _request(action="read"))
     assert result.is_ok
@@ -364,8 +381,8 @@ async def test_evaluate_action_case_insensitive(abac_service: ABACService):
 
 @pytest.mark.asyncio
 async def test_account_isolation(abac_service: ABACService):
-    await abac_service.create_policy(ACCOUNT_ID, _allow_policy())
-    await abac_service.create_policy("acc-other", _deny_policy(action="delete"))
+    await abac_service.create_policy(ACCOUNT_ID, *_allow_policy())
+    await abac_service.create_policy("acc-other", *_deny_policy(action="delete"))
 
     own_result = await abac_service.list_policies(ACCOUNT_ID)
     other_result = await abac_service.list_policies("acc-other")

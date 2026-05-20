@@ -6,9 +6,8 @@ needed.  MongoDB must be reachable at localhost:27018; Redis must be up for
 the app lifespan.
 """
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from tests.abac.conftest import ACCOUNT_ID
-from xoloapi.accounts.dependencies import get_accounts_service
 
 
 def _account_path(path: str, account_id: str = ACCOUNT_ID) -> str:
@@ -206,27 +205,14 @@ async def test_evaluate_with_time_window(abac_client: AsyncClient):
 # ── Auth guard ─────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_unauthenticated_request_returns_401(abac_accounts_service):
-    from xoloapi.server import app
-    from xoloapi.middleware.apikey import _get_apikey_service
-    from tests.abac.conftest import _FakeAPIKeyService
-
-    app.dependency_overrides[_get_apikey_service] = lambda: _FakeAPIKeyService()
-    app.dependency_overrides[get_accounts_service] = lambda: abac_accounts_service
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-        headers={"X-API-Key": "test-key"},
-    ) as client:
-        for method, path in [
-            ("GET",    "/api/v4/accounts/acc-abac/abac/policies"),
-            ("POST",   "/api/v4/accounts/acc-abac/abac/policies"),
-            ("POST",   "/api/v4/accounts/acc-abac/abac/evaluate"),
-        ]:
-            res = await getattr(client, method.lower())(path)
-            assert res.status_code == 401, f"{method} {path} should require auth"
-    app.dependency_overrides.pop(_get_apikey_service, None)
-    app.dependency_overrides.pop(get_accounts_service, None)
+async def test_unauthenticated_request_returns_401(unauthenticated_abac_client: AsyncClient):
+    for method, path in [
+        ("GET",  _account_path("/policies")),
+        ("POST", _account_path("/policies")),
+        ("POST", _account_path("/evaluate")),
+    ]:
+        res = await getattr(unauthenticated_abac_client, method.lower())(path)
+        assert res.status_code == 401, f"{method} {path} should require auth"
 
 
 @pytest.mark.asyncio
