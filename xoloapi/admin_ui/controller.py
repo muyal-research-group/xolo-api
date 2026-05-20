@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from xoloapi.apikeys.application.apikey_service import APIKeyService
 from xoloapi.log import Log
 
 import xoloapi.abac.dto as ABACDTO
@@ -27,7 +28,7 @@ from xoloapi.abac.application.abac_service import ABACService
 from xoloapi.abac.controller import get_abac_service
 from xoloapi.abac.domain.value_objects import Effect as ABACEffect
 from xoloapi.acl.application.acl_service import ACLService
-from xoloapi.acl.application.group_service import GroupService
+from xoloapi.groups.application.group_service import GroupService
 from xoloapi.acl.controller import get_acl_service, get_group_service
 from xoloapi.accounts.application.accounts_service import AccountsService
 from xoloapi.accounts.controller import get_accounts_service
@@ -650,7 +651,7 @@ async def apikeys_page(
 async def delete_apikey(
     request: Request,
     key_id: str = Form(...),
-    service=Depends(get_apikey_service),
+    service: APIKeyService = Depends(get_apikey_service),
     accounts_service: AccountsService = Depends(get_accounts_service),
 ):
     session = _ensure_admin_session(request)
@@ -705,7 +706,7 @@ async def delete_apikey(
 async def rotate_apikey(
     request: Request,
     key_id: str = Form(...),
-    service=Depends(get_apikey_service),
+    service: APIKeyService = Depends(get_apikey_service),
     accounts_service: AccountsService = Depends(get_accounts_service),
 ):
     session = _ensure_admin_session(request)
@@ -771,7 +772,7 @@ async def create_apikey(
     name: str = Form(...),
     scopes: list[str] = Form(...),
     expires_at: str = Form(""),
-    service=Depends(get_apikey_service),
+    service: APIKeyService = Depends(get_apikey_service),
     accounts_service: AccountsService = Depends(get_accounts_service),
 ):
     session = _ensure_admin_session(request)
@@ -1904,7 +1905,8 @@ async def delete_acl_resource(
 @router.post("/acl/check", response_class=HTMLResponse, name="admin_check_acl")
 async def check_acl(
     request: Request,
-    user_id: str = Form(...),
+    principal_id: str = Form(...),
+    principal_type: str = Form(default="USER"),
     resource_id: str = Form(...),
     permissions: str = Form(...),
     acl_service: ACLService = Depends(get_acl_service),
@@ -1921,22 +1923,23 @@ async def check_acl(
         parsed_permissions = _parse_csv_list(permissions)
         result = await acl_service.check(
             account_id=current_account_id,
-            user_id=user_id.strip(),
+            user_id=principal_id.strip(),
             resource_id=resource_id.strip(),
             permissions=parsed_permissions,
         )
         if result.is_err:
             error = result.unwrap_err()
             error_message = _error_message(error)
-            log.error(build_log_payload("admin_ui.acl.check.error", started_at=t1, error=error, account_id=current_account_id, user_id=user_id.strip(), resource_id=resource_id.strip()))
+            log.error(build_log_payload("admin_ui.acl.check.error", started_at=t1, error=error, account_id=current_account_id, principal_id=principal_id.strip(), principal_type=principal_type.strip(), resource_id=resource_id.strip()))
         else:
             acl_check_result = {
-                "user_id": user_id.strip(),
+                "principal_id": principal_id.strip(),
+                "principal_type": principal_type.strip().upper(),
                 "resource_id": resource_id.strip(),
                 "permissions": parsed_permissions,
                 "has_permission": result.unwrap(),
             }
-            log.info(build_log_payload("admin_ui.acl.check", started_at=t1, account_id=current_account_id, user_id=user_id.strip(), resource_id=resource_id.strip(), has_permission=result.unwrap()))
+            log.info(build_log_payload("admin_ui.acl.check", started_at=t1, account_id=current_account_id, principal_id=principal_id.strip(), principal_type=principal_type.strip(), resource_id=resource_id.strip(), has_permission=result.unwrap()))
     policies = []
     groups = []
     load_error = None
@@ -1990,6 +1993,7 @@ async def rbac_page(
         success_message=None,
         roles=roles,
         assignments=assignments,
+        rbac_check_result=None,
         current_account_id=current_account_id,
     )
 

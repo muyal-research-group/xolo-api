@@ -9,14 +9,17 @@ import commonx.dto.xolo as DTO
 
 from xoloapi.accounts.dependencies import require_existing_account
 from xoloapi.acl.application.acl_service import ACLService
-from xoloapi.acl.application.group_service import GroupService
+from xoloapi.groups.application.group_service import GroupService
 from xoloapi.acl.domain.value_objects import PrincipalType
-from xoloapi.acl.dto import CheckDTO, ClaimResourceDTO, GrantOrRevokeDTO, MembersDTO
+from xoloapi.acl.dto import (
+    CheckDTO, ClaimResourceDTO, GrantOrRevokeDTO, GroupDetailDTO,
+    GroupMembershipDTO, MembersDTO, PaginatedDTO, ResourceDetailDTO, UserResourcesDTO,
+)
 from xoloapi.acl.infrastructure.mongo_resource_policy_repository import MongoResourcePolicyRepository
-from xoloapi.acl.infrastructure.mongo_security_group_repository import MongoSecurityGroupRepository
+from xoloapi.groups.infrastructure.mongo_security_group_repository import MongoSecurityGroupRepository
 from xoloapi.db.constants import CollectionNames
 from xoloapi.log.format import build_log_payload
-from xoloapi.middleware.apikey import require_api_key
+from xoloapi.middleware.apikey import require_api_key, require_admin_or_api_key
 
 log = Log(
     name                   = __name__,
@@ -73,21 +76,64 @@ async def get_resources(
     me:               DTO.UserDTO = Depends(MX.get_current_user),
     service:          ACLService  = Depends(get_acl_service),
 ):
-    t1     = T.time()
-    result = await service.get_user_resources(
-        account_id       = account_id,
-        user_id          = me.key,
-        owned_page       = owned_page,
-        owned_page_size  = owned_page_size,
-        shared_page      = shared_page,
-        shared_page_size = shared_page_size,
-    )
-    if result.is_err:
-        err = result.unwrap_err()
+    t1 = T.time()
+
+    groups_result = await service.get_user_groups(account_id, me.key)
+    if groups_result.is_err:
+        err = groups_result.unwrap_err()
         log.error(build_log_payload("acl.get_resources.error", started_at=t1, error=err, actor_user_id=me.key))
         raise err.to_http_exception()
+    groups    = groups_result.unwrap()
+    group_map = {g.group_id: g.name for g in groups}
+
+    owned_result = await service.get_owned_resources_page(account_id, me.key, owned_page, owned_page_size)
+    if owned_result.is_err:
+        err = owned_result.unwrap_err()
+        log.error(build_log_payload("acl.get_resources.error", started_at=t1, error=err, actor_user_id=me.key))
+        raise err.to_http_exception()
+    owned = owned_result.unwrap()
+
+    all_pids       = [me.key] + list(group_map.keys())
+    exclude_ids    = [p.resource_id for p in owned.items]
+    shared_result  = await service.get_shared_resources_page(account_id, all_pids, exclude_ids, shared_page, shared_page_size)
+    if shared_result.is_err:
+        err = shared_result.unwrap_err()
+        log.error(build_log_payload("acl.get_resources.error", started_at=t1, error=err, actor_user_id=me.key))
+        raise err.to_http_exception()
+    shared = shared_result.unwrap()
+
+    shared_items: list[ResourceDetailDTO] = []
+    for p in shared.items:
+        source = "Direct"
+        for grant in p.grants:
+            if grant.principal.id in group_map:
+                source = f"Group: {group_map[grant.principal.id]}"
+                break
+        shared_items.append(ResourceDetailDTO(
+            resource_id   = p.resource_id,
+            permissions   = {perm.value for perm in p.effective_permissions(all_pids)},
+            access_source = source,
+        ))
+
     log.info(build_log_payload("acl.get_resources", started_at=t1, actor_user_id=me.key))
-    return result.unwrap()
+    return UserResourcesDTO(
+        user_id         = me.key,
+        groups          = [GroupDetailDTO(id=g.group_id, name=g.name, my_role="owner" if g.is_owned_by(me.key) else "member") for g in groups],
+        owned_resources = PaginatedDTO[ResourceDetailDTO](
+            items       = [ResourceDetailDTO(resource_id=p.resource_id, permissions={perm.value for perm in p.effective_permissions([me.key])}, access_source="Owner") for p in owned.items],
+            total_count = owned.total,
+            page        = owned.page,
+            page_size   = owned.size,
+            total_pages = owned.total_pages,
+        ),
+        shared_resources = PaginatedDTO[ResourceDetailDTO](
+            items       = shared_items,
+            total_count = shared.total,
+            page        = shared.page,
+            page_size   = shared.size,
+            total_pages = shared.total_pages,
+        ),
+    )
 
 
 @router.post("/claim", status_code=status.HTTP_204_NO_CONTENT)
@@ -206,10 +252,11 @@ async def check_permission(
     me:      DTO.UserDTO  = Depends(MX.get_current_user),
     service: ACLService   = Depends(get_acl_service),
 ):
-    t1     = T.time()
-    result = await service.check(
+    t1      = T.time()
+    subject = dto.principal_id.strip() if dto.principal_id else me.key
+    result  = await service.check(
         account_id  = account_id,
-        user_id     = me.key,
+        user_id     = subject,
         resource_id = dto.resource_id,
         permissions = dto.permissions,
     )
@@ -221,6 +268,7 @@ async def check_permission(
                 started_at=t1,
                 error=err,
                 actor_user_id=me.key,
+                principal_id=subject,
                 resource_id=dto.resource_id,
                 permissions=dto.permissions,
             )
@@ -232,6 +280,7 @@ async def check_permission(
             "acl.check",
             started_at=t1,
             actor_user_id=me.key,
+            principal_id=subject,
             resource_id=dto.resource_id,
             permissions=dto.permissions,
             has_permission=has_permission,
@@ -317,12 +366,32 @@ async def remove_members(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.get("/groups/{group_id}/members/{user_id}", status_code=status.HTTP_200_OK, response_model=GroupMembershipDTO)
+async def check_group_membership(
+    account_id: str,
+    group_id:   str,
+    user_id:    str,
+    _:          object       = Depends(require_api_key("acl")),
+    me:         DTO.UserDTO   = Depends(MX.get_current_user),
+    service:    GroupService  = Depends(get_group_service),
+):
+    t1     = T.time()
+    result = await service.is_member(account_id=account_id, user_id=user_id, group_id=group_id)
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error(build_log_payload("acl.check_membership.error", started_at=t1, error=err, actor_user_id=me.key, group_id=group_id, user_id=user_id))
+        raise err.to_http_exception()
+    is_member = result.unwrap()
+    log.info(build_log_payload("acl.check_membership", started_at=t1, actor_user_id=me.key, group_id=group_id, user_id=user_id, is_member=is_member))
+    return GroupMembershipDTO(user_id=user_id, group_id=group_id, is_member=is_member)
+
+
 # ── Data Discovery Endpoints ──────────────────────────────────────────────────
 
 @router.get("/groups/list", status_code=status.HTTP_200_OK)
 async def list_groups_discovery(
     account_id: str,
-    _:       object       = Depends(require_api_key("acl")),
+    _:       object       = Depends(require_admin_or_api_key("acl")),
     service: GroupService  = Depends(get_group_service),
 ):
     t1     = T.time()
@@ -339,7 +408,7 @@ async def list_groups_discovery(
 @router.get("/principals/list", status_code=status.HTTP_200_OK)
 async def list_principals_discovery(
     account_id: str,
-    _:       object       = Depends(require_api_key("acl")),
+    _:       object       = Depends(require_admin_or_api_key("acl")),
     service: GroupService  = Depends(get_group_service),
 ):
     t1     = T.time()
@@ -356,7 +425,7 @@ async def list_principals_discovery(
 @router.get("/resources/list", status_code=status.HTTP_200_OK)
 async def list_resources_discovery(
     account_id: str,
-    _:       object       = Depends(require_api_key("acl")),
+    _:       object       = Depends(require_admin_or_api_key("acl")),
     service: ACLService    = Depends(get_acl_service),
 ):
     t1     = T.time()

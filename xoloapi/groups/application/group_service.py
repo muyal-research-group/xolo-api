@@ -1,8 +1,8 @@
 import uuid
 from option import Result, Ok, Err
 
-from xoloapi.acl.domain.aggregates import GroupMember, SecurityGroup
-from xoloapi.acl.domain.repositories import ISecurityGroupRepository
+from xoloapi.groups.domain.aggregates import GroupMember, SecurityGroup
+from xoloapi.groups.domain.repositories import ISecurityGroupRepository
 from xoloapi.errors.base import (
     AccessDeniedError,
     AlreadyExistsError,
@@ -20,13 +20,18 @@ class GroupService:
         return await self.repo.list_all(account_id)
 
     async def list_principals(self, account_id: str) -> Result[list[dict], XoloException]:
-        """Return a simple list of principals for discovery (users as principals for now)."""
-        # In a real implementation, this would return all unique principals in policies
-        # For now, return empty list - can be extended to fetch from users service
         return Ok([])
 
     async def list_members(self, account_id: str, group_id: str) -> Result[list[GroupMember], XoloException]:
         return await self.repo.list_members(account_id, group_id)
+
+    async def is_member(self, account_id: str, user_id: str, group_id: str) -> Result[bool, XoloException]:
+        find = await self.repo.find_by_id(account_id, group_id)
+        if find.is_err:
+            return Err(find.unwrap_err())
+        if find.unwrap().is_none:
+            return Err(NotFoundError("SecurityGroup", group_id))
+        return await self.repo.is_member(account_id, group_id, user_id)
 
     async def create_group(
         self, account_id: str, owner_id: str, name: str, description: str = ""

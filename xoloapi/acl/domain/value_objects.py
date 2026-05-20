@@ -11,6 +11,7 @@ class Permission(str, Enum):
     READ   = "read"
     WRITE  = "write"
     DELETE = "delete"
+    UPDATE = "update"
     MANAGE = "sys:manage"
 
 

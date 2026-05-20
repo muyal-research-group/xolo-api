@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel
 
 
@@ -22,8 +22,9 @@ class ParentRoleDTO(BaseModel):
 
 
 class AssignRoleDTO(BaseModel):
-    subject_id: str
-    role_id:    str
+    subject_id:   str
+    role_id:      str
+    subject_type: Literal["user", "group"] = "user"
 
 
 class UnassignRoleDTO(BaseModel):
@@ -34,6 +35,11 @@ class UnassignRoleDTO(BaseModel):
 class CheckPermissionDTO(BaseModel):
     subject_id:  str
     permission:  str
+
+
+class HasRoleCheckDTO(BaseModel):
+    subject_id: str
+    role_id:    str
 
 
 # ── Response DTOs ─────────────────────────────────────────────────────────────
@@ -61,3 +67,9 @@ class CheckResultDTO(BaseModel):
 class EffectivePermissionsDTO(BaseModel):
     subject_id:  str
     permissions: list[str]
+
+
+class HasRoleDTO(BaseModel):
+    subject_id: str
+    role_id:    str
+    has_role:   bool

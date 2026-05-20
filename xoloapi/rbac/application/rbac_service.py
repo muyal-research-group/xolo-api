@@ -1,5 +1,6 @@
 from option import Result, Ok, Err
 
+from xoloapi.groups.domain.repositories import ISecurityGroupRepository
 from xoloapi.errors.base import XoloException, NotFoundError, ConflictError, ValidationError
 from xoloapi.rbac.domain.aggregates import Role, RoleAssignment
 from xoloapi.rbac.domain.repositories import IRoleRepository, IRoleAssignmentRepository
@@ -12,9 +13,11 @@ class RBACService:
         self,
         role_repo:       IRoleRepository,
         assignment_repo: IRoleAssignmentRepository,
+        group_repo:      ISecurityGroupRepository,
     ) -> None:
         self._roles       = role_repo
         self._assignments = assignment_repo
+        self._groups      = group_repo
         self._domain      = RBACDomainService()
 
     # ── Roles ─────────────────────────────────────────────────────────────────
@@ -116,7 +119,7 @@ class RBACService:
         role_result = await self.get_role(account_id, role_id)
         if role_result.is_err:
             return role_result
-
+        print("ROLE RESULT", role_result)
         updated = role_result.unwrap().remove_permission(permission)
         saved   = await self._roles.save(updated)
         if saved.is_err:
@@ -192,14 +195,32 @@ class RBACService:
         return await self._assignments.delete(account_id, opt.unwrap().assignment_id)
 
     async def get_subject_roles(self, account_id: str, subject_id: str) -> Result[list[Role], XoloException]:
-        assignments = await self._assignments.find_by_subject(account_id, subject_id)
-        if assignments.is_err:
-            return assignments
+        direct = await self._assignments.find_by_subject(account_id, subject_id)
+        if direct.is_err:
+            return direct
 
-        role_ids = [a.role_id for a in assignments.unwrap()]
+        role_ids: set[str] = {a.role_id for a in direct.unwrap()}
+
+        group_ids_result = await self._groups.find_group_ids_for_user(account_id, subject_id)
+        if group_ids_result.is_err:
+            return group_ids_result
+
+        for gid in group_ids_result.unwrap():
+            group_assignments = await self._assignments.find_by_subject(account_id, gid)
+            if group_assignments.is_err:
+                return group_assignments
+            role_ids.update(a.role_id for a in group_assignments.unwrap())
+
         if not role_ids:
             return Ok([])
-        return await self._roles.find_many(account_id, role_ids)
+        return await self._roles.find_many(account_id, list(role_ids))
+
+    async def has_role(self, account_id: str, subject_id: str, role_id: str) -> Result[bool, XoloException]:
+        roles_result = await self.get_subject_roles(account_id, subject_id)
+        if roles_result.is_err:
+            return roles_result
+        found = any(r.role_id == role_id for r in roles_result.unwrap())
+        return Ok(found)
 
     async def list_assignments(self, account_id: str) -> Result[list[RoleAssignment], XoloException]:
         return await self._assignments.find_all(account_id)

@@ -39,8 +39,8 @@ class APIKeyService:
     def _hash(value: str) -> str:
         return hashlib.sha256(value.encode()).hexdigest()
 
-    def _generate_raw_key(self, primary_scope: str) -> str:
-        return f"{self.API_KEY_PREFIX}_{primary_scope}_{secrets.token_urlsafe(32)}".upper()
+    def _generate_raw_key(self) -> str:
+        return f"{self.API_KEY_PREFIX}_{secrets.token_urlsafe(32)}".upper()
 
     @staticmethod
     def _valid_admin_token(token: str) -> bool:
@@ -62,8 +62,7 @@ class APIKeyService:
         """Create a new API key. Returns (APIKey metadata, raw key).
         The raw key is returned exactly once and never stored."""
         log.debug(build_log_payload("apikeys.create.attempt", account_id=account_id, key_name=name, scopes=[scope.value for scope in scopes]))
-        primary_scope = scopes[0].value if scopes else "all"
-        raw_key       = self._generate_raw_key(primary_scope)
+        raw_key = self._generate_raw_key()
         key_hash      = self._hash(raw_key)
         key_id        = f"ak-{generate(size=12)}"
 
@@ -136,8 +135,9 @@ class APIKeyService:
             return Err(error)
 
         old        = maybe.unwrap()
-        primary    = old.scopes[0].value if old.scopes else "all"
-        raw_key    = self._generate_raw_key(primary)
+        # primary    = old.scopes[0].value if old.scopes else "all"
+        # raw_key    = self._generate_raw_key(primary)
+        raw_key    = self._generate_raw_key()
         new_hash   = self._hash(raw_key)
         new_prefix = raw_key[:16]
 

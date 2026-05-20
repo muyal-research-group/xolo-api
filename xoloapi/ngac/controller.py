@@ -13,7 +13,8 @@ from xoloapi.middleware.apikey import require_api_key
 from xoloapi.ngac.application.ngac_service import NGACService
 from xoloapi.ngac.dto import (
     AssignDTO, AssociateDTO, CheckAccessDTO,
-    CreateNodeDTO, RemoveAssignmentDTO,
+    CreateNodeDTO, NGACDecisionDTO, NGACNodeResponseDTO,
+    NGACAssignmentResponseDTO, NGACAssociationResponseDTO, RemoveAssignmentDTO,
 )
 from xoloapi.ngac.infrastructure.mongo_ngac_repository import MongoNGACRepository
 from xoloapi.db.constants import CollectionNames
@@ -58,7 +59,7 @@ async def create_node(
     service: NGACService  = Depends(get_ngac_service),
 ):
     t1     = T.time()
-    result = await service.create_node(account_id, dto, owner_id=me.key)
+    result = await service.create_node(account_id, dto.node_type, dto.name, dto.properties, owner_id=me.key)
     if result.is_err:
         err = result.unwrap_err()
         log.error(build_log_payload("ngac.create_node.error", started_at=t1, error=err, actor_user_id=me.key, node_name=dto.name, node_type=dto.node_type.value))
@@ -84,7 +85,7 @@ async def list_nodes(
         raise err.to_http_exception()
     nodes = result.unwrap()
     log.info(build_log_payload("ngac.list_nodes", started_at=t1, actor_user_id=me.key, node_type=node_type, node_count=len(nodes)))
-    return [n.model_dump(exclude={"account_id"}) for n in nodes]
+    return [NGACNodeResponseDTO.model_validate(n) for n in nodes]
 
 
 @router.get("/nodes/{node_id}", status_code=status.HTTP_200_OK)
@@ -102,7 +103,7 @@ async def get_node(
         log.error(build_log_payload("ngac.get_node.error", started_at=t1, error=err, actor_user_id=me.key, node_id=node_id))
         raise err.to_http_exception()
     log.info(build_log_payload("ngac.get_node", started_at=t1, actor_user_id=me.key, node_id=node_id))
-    return result.unwrap().model_dump(exclude={"account_id"})
+    return NGACNodeResponseDTO.model_validate(result.unwrap())
 
 
 @router.delete("/nodes/{node_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -134,7 +135,7 @@ async def assign(
     service: NGACService = Depends(get_ngac_service),
 ):
     t1     = T.time()
-    result = await service.assign(account_id, dto, owner_id=me.key, is_admin=Cfg.is_superadmin(me))
+    result = await service.assign(account_id, dto.from_id, dto.to_id, owner_id=me.key, is_admin=Cfg.is_superadmin(me))
     if result.is_err:
         err = result.unwrap_err()
         log.error(build_log_payload("ngac.assign.error", started_at=t1, error=err, actor_user_id=me.key, from_id=dto.from_id, to_id=dto.to_id))
@@ -152,7 +153,7 @@ async def remove_assignment(
     service: NGACService = Depends(get_ngac_service),
 ):
     t1     = T.time()
-    result = await service.remove_assignment(account_id, dto, requester_key=me.key, is_admin=Cfg.is_superadmin(me))
+    result = await service.remove_assignment(account_id, dto.from_id, dto.to_id, requester_key=me.key, is_admin=Cfg.is_superadmin(me))
     if result.is_err:
         err = result.unwrap_err()
         log.error(build_log_payload("ngac.remove_assignment.error", started_at=t1, error=err, actor_user_id=me.key, from_id=dto.from_id, to_id=dto.to_id))
@@ -176,7 +177,7 @@ async def list_assignments(
         raise err.to_http_exception()
     assignments = result.unwrap()
     log.info(build_log_payload("ngac.list_assignments", started_at=t1, actor_user_id=me.key, assignment_count=len(assignments)))
-    return [a.model_dump(exclude={"account_id"}) for a in assignments]
+    return [NGACAssignmentResponseDTO.model_validate(a) for a in assignments]
 
 
 # ── Associations ──────────────────────────────────────────────────────────────
@@ -190,7 +191,7 @@ async def associate(
     service: NGACService = Depends(get_ngac_service),
 ):
     t1     = T.time()
-    result = await service.associate(account_id, dto, owner_id=me.key, is_admin=Cfg.is_superadmin(me))
+    result = await service.associate(account_id, dto.user_attribute_id, dto.object_attribute_id, dto.operations, owner_id=me.key, is_admin=Cfg.is_superadmin(me))
     if result.is_err:
         err = result.unwrap_err()
         log.error(
@@ -251,7 +252,7 @@ async def list_associations(
         raise err.to_http_exception()
     associations = result.unwrap()
     log.info(build_log_payload("ngac.list_associations", started_at=t1, actor_user_id=me.key, association_count=len(associations)))
-    return [a.model_dump(exclude={"account_id"}) for a in associations]
+    return [NGACAssociationResponseDTO.model_validate(a) for a in associations]
 
 
 # ── Access check ──────────────────────────────────────────────────────────────
@@ -265,7 +266,7 @@ async def check_access(
     service: NGACService = Depends(get_ngac_service),
 ):
     t1     = T.time()
-    result = await service.check_access(account_id, dto)
+    result = await service.check_access(account_id, dto.user_id, dto.object_id, dto.operation)
     if result.is_err:
         err = result.unwrap_err()
         log.error(
@@ -280,7 +281,7 @@ async def check_access(
             )
         )
         raise err.to_http_exception()
-    decision = result.unwrap()
+    allowed, reason = result.unwrap()
     log.info(
         build_log_payload(
             "ngac.check",
@@ -289,11 +290,17 @@ async def check_access(
             user_id=dto.user_id,
             object_id=dto.object_id,
             operation=dto.operation,
-            allowed=decision.allowed,
-            reason=decision.reason,
+            allowed=allowed,
+            reason=reason,
         )
     )
-    return decision.model_dump()
+    return NGACDecisionDTO(
+        allowed   = allowed,
+        reason    = reason,
+        user_id   = dto.user_id,
+        object_id = dto.object_id,
+        operation = dto.operation,
+    )
 
 
 # ── Data Discovery Endpoints ──────────────────────────────────────────────────
@@ -330,7 +337,7 @@ async def list_assignments_discovery(
         raise err.to_http_exception()
     assignments = result.unwrap()
     log.info(build_log_payload("ngac.list_assignments_discovery", started_at=t1, assignment_count=len(assignments)))
-    return [{"id": a.assignment_id, "child": a.child_node_id, "parent": a.parent_node_id} for a in assignments]
+    return [{"id": a.assignment_id, "child": a.from_id, "parent": a.to_id} for a in assignments]
 
 
 @router.get("/associations/list", status_code=status.HTTP_200_OK)

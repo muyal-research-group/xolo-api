@@ -17,10 +17,7 @@ def str_to_bool(value):
     return str(value).strip().lower() in ("true", "1", "yes", "on")
 
 XOLO_LICENSE_SECRET_KEY   = env("XOLO_LICENSE_SECRET_KEY", "ed448c7a5449e9603058ce630e26c9e3befb2b15e3692411c001e0b4256852d2", "XOLO_ACL_KEY")
-XOLO_ACL_KEY              = XOLO_LICENSE_SECRET_KEY
-XOLO_ACL_OUTPUT_PATH      = env("XOLO_ACL_OUTPUT_PATH", "/xolo")
-XOLO_ACL_FILENAME         = env("XOLO_ACL_FILENAME", "xolo-acl.enc")
-XOLO_ACL_DAEMON_HEARTBEAT = env("XOLO_ACL_DAEMON_HEARTBEAT", "15min")
+# XOLO_ACL_KEY              = XOLO_LICENSE_SECRET_KEY
 XOLO_LOG_NAME             = env("XOLO_LOG_NAME", "xoloapi")
 XOLO_LOG_INTERVAL         = int(env("XOLO_LOG_INTERVAL", "24"))
 XOLO_LOG_WHEN             = env("XOLO_LOG_WHEN", "h")

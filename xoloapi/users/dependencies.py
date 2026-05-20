@@ -14,6 +14,12 @@ from xoloapi.users.infrastructure.noop_users_mailer import NoOpUsersMailer
 from xoloapi.users.infrastructure.smtp_users_mailer import SMTPUsersMailer
 
 
+def get_users_repository() -> MongoUsersRepository:
+    return MongoUsersRepository(
+        collection=get_collection(CollectionNames.USERS_COLLECTION_NAME),
+    )
+
+
 def get_cache_redis():
     from xoloapi.db.cache import get_redis_client
 

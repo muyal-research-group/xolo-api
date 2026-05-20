@@ -11,6 +11,7 @@ from xoloapi.middleware.apikey import require_admin_or_api_key
 from xoloapi.log.format import build_log_payload
 from xoloapi.db import get_collection
 from xoloapi.db.constants import CollectionNames
+from xoloapi.licenses.dependencies import get_licenses_repository
 from xoloapi.licenses.infrastructure.mongo_repository import MongoLicensesRepository
 from xoloapi.scopes.application.scopes_service import ScopesService
 from xoloapi.scopes.infrastructure.mongo_repository import MongoScopesRepository
@@ -28,16 +29,15 @@ log = Log(
 )
 
 
-def get_scopes_service() -> ScopesService:
-    repository = MongoScopesRepository(
-        collection=get_collection(CollectionNames.SCOPES_COLLECTION_NAME),
-        scope_user_collection=get_collection(CollectionNames.SCOPE_USER_COLLECTION_NAME),
-    )
+def get_scopes_service(
+    licenses_repo: MongoLicensesRepository = Depends(get_licenses_repository),
+) -> ScopesService:
     return ScopesService(
-        repository=repository,
-        licenses_repository=MongoLicensesRepository(
-            collection=get_collection(CollectionNames.LICENSES_COLLECTION_NAME),
+        repository=MongoScopesRepository(
+            collection=get_collection(CollectionNames.SCOPES_COLLECTION_NAME),
+            scope_user_collection=get_collection(CollectionNames.SCOPE_USER_COLLECTION_NAME),
         ),
+        licenses_repository=licenses_repo,
     )
 
 

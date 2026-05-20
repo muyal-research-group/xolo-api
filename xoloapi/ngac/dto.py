@@ -1,5 +1,6 @@
+import datetime
 from typing import Dict, List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from xoloapi.ngac.domain.value_objects import NodeType
 
 
@@ -39,3 +40,37 @@ class NGACDecisionDTO(BaseModel):
     user_id:   str
     object_id: str
     operation: str
+
+
+# ── Response DTOs ─────────────────────────────────────────────────────────────
+
+class NGACNodeResponseDTO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    node_id:    str
+    node_type:  NodeType
+    name:       str
+    properties: Dict[str, str] = {}
+    owner_id:   str = ""
+    created_at: datetime.datetime
+
+
+class NGACAssignmentResponseDTO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    assignment_id: str
+    from_id:       str
+    to_id:         str
+    owner_id:      str = ""
+    created_at:    datetime.datetime
+
+
+class NGACAssociationResponseDTO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    association_id:      str
+    user_attribute_id:   str
+    object_attribute_id: str
+    operations:          List[str]
+    owner_id:            str = ""
+    created_at:          datetime.datetime

@@ -10,10 +10,10 @@ from xoloapi.accounts.dependencies import require_existing_account
 import xoloapi.licenses.dto as DTO
 from xoloapi.middleware.apikey import require_admin_or_api_key
 from xoloapi.log.format import build_log_payload
-from xoloapi.db import get_collection
-from xoloapi.db.constants import CollectionNames
 from xoloapi.licenses.application.licenses_service import LicensesService
+from xoloapi.licenses.dependencies import get_licenses_repository
 from xoloapi.licenses.infrastructure.mongo_repository import MongoLicensesRepository
+from xoloapi.users.dependencies import get_users_repository
 from xoloapi.users.infrastructure.mongo_repository import MongoUsersRepository
 
 router = APIRouter(
@@ -30,14 +30,13 @@ log = Log(
 )
 
 
-def get_licenses_service() -> LicensesService:
+def get_licenses_service(
+    users_repo:    MongoUsersRepository    = Depends(get_users_repository),
+    licenses_repo: MongoLicensesRepository = Depends(get_licenses_repository),
+) -> LicensesService:
     return LicensesService(
-        users_repository=MongoUsersRepository(
-            collection=get_collection(CollectionNames.USERS_COLLECTION_NAME),
-        ),
-        repository=MongoLicensesRepository(
-            collection=get_collection(CollectionNames.LICENSES_COLLECTION_NAME),
-        ),
+        users_repository=users_repo,
+        repository=licenses_repo,
         secret_key=XOLO_LICENSE_SECRET_KEY,
     )
 
