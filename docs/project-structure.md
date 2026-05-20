@@ -43,6 +43,7 @@ Not every module uses every file. Simpler modules may omit `models.py` or `value
 | `licenses/` | Creates, lists, and revokes licenses tied to users and scopes. | Follows the common layered module pattern. |
 | `apikeys/` | Creates and manages account-owned API keys and their scope bindings. | Follows the common layered module pattern. |
 | `acl/` | Provides ownership and permission-sharing access control. | Follows the common layered module pattern. |
+| `groups/` | Shared SecurityGroup bounded context used by ACL and RBAC. Owns group creation, membership, and group-ID resolution for permission checks. | Follows the common layered module pattern. |
 | `abac/` | Implements the persisted ABAC Event subsystem. | Uses the full package-local layout and adds `models.py` and `value_objects.py`. |
 | `ngac/` | Implements graph-based NGAC authorization with nodes, assignments, associations, and checks. | Uses package-local application/domain/infrastructure layers plus graph-specific helpers. |
 | `rbac/` | Handles role-based access control flows. | Follows the common layered module pattern. |

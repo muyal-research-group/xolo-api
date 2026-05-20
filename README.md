@@ -67,7 +67,6 @@ Xolo uses two architectural styles:
 2. **Vertical slices** for newer authorization systems:
    - `xoloapi/abac/`
    - `xoloapi/ngac/`
-   - `xoloapi/policies/`
 
 Cross-cutting conventions:
 
@@ -95,9 +94,9 @@ xolo-api/
 │   ├── apikeys/               # API key creation and management
 │   ├── admin_ui/              # Minimal internal super-admin UI
 │   ├── acl/                   # ACL subsystem
+│   ├── groups/                # SecurityGroup shared bounded context (used by ACL and RBAC)
 │   ├── abac/                  # Persisted ABAC Event subsystem
-│   ├── ngac/                  # NGAC graph subsystem
-│   └── policies/              # In-memory ABAC/community subsystem
+│   └── ngac/                  # NGAC graph subsystem
 ├── tests/                     # Integration and module tests
 ├── deploy/env/                # Deployment env files
 ├── assets/                    # Static project assets
