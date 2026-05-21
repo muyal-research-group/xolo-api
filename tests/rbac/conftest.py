@@ -5,6 +5,7 @@ import commonx.dto.xolo as DTO
 import xoloapi.middleware as MX
 from xoloapi.apikeys.domain.value_objects import APIKeyScope
 from xoloapi.db.constants import CollectionNames
+from xoloapi.groups.infrastructure.mongo_security_group_repository import MongoSecurityGroupRepository
 from xoloapi.rbac.application.rbac_service import RBACService
 from xoloapi.rbac.infrastructure.mongo_role_assignment_repository import MongoRoleAssignmentRepository
 from xoloapi.rbac.infrastructure.mongo_role_repository import MongoRoleRepository
@@ -48,6 +49,11 @@ async def rbac_service(rbac_db):
             db=rbac_db,
             collection_name=CollectionNames.RBAC_ASSIGNMENTS_COLLECTION_NAME,
         ),
+        group_repo=MongoSecurityGroupRepository(
+            db=rbac_db,
+            groups_col=CollectionNames.SECURITY_GROUPS_COLLECTION_NAME,
+            members_col= CollectionNames.GROUP_MEMBERS_COLLECTION_NAME
+        )
     )
 
 

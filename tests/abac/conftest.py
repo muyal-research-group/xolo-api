@@ -82,6 +82,28 @@ async def abac_accounts_service():
 
 
 @pytest_asyncio.fixture
+async def unauthenticated_abac_client(abac_service, abac_accounts_service):
+    from xoloapi.abac.controller import get_abac_service
+    from xoloapi.server import app
+    from xoloapi.middleware.apikey import _get_apikey_service
+
+    app.dependency_overrides[get_abac_service]    = lambda: abac_service
+    app.dependency_overrides[get_accounts_service] = lambda: abac_accounts_service
+    app.dependency_overrides[_get_apikey_service] = lambda: _FakeAPIKeyService()
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"X-API-Key": "test-key"},
+    ) as client:
+        yield client
+
+    app.dependency_overrides.pop(get_abac_service, None)
+    app.dependency_overrides.pop(get_accounts_service, None)
+    app.dependency_overrides.pop(_get_apikey_service, None)
+
+
+@pytest_asyncio.fixture
 async def abac_client(abac_service, abac_accounts_service):
     """AsyncClient with auth and service factory overridden to use the test DB."""
     from xoloapi.abac.controller import get_abac_service

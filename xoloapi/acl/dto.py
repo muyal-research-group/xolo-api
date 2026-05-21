@@ -33,8 +33,10 @@ class GrantOrRevokeDTO(BaseModel):
 
 
 class CheckDTO(BaseModel):
-    resource_id: str
-    permissions: List[str]
+    resource_id:    str
+    permissions:    List[str]
+    principal_id:   Optional[str] = None  # if omitted → defaults to the authenticated caller
+    principal_type: Optional[str] = None  # "USER" | "GROUP"
 
 
 class CreateGroupDTO(BaseModel):
@@ -65,3 +67,9 @@ class UserResourcesDTO(BaseModel):
     groups:           List[GroupDetailDTO]
     owned_resources:  PaginatedDTO[ResourceDetailDTO]
     shared_resources: PaginatedDTO[ResourceDetailDTO]
+
+
+class GroupMembershipDTO(BaseModel):
+    user_id:   str
+    group_id:  str
+    is_member: bool

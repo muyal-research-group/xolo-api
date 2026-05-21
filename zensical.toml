@@ -9,22 +9,9 @@ Copyright &copy; 2026 Muyal Research Group
 nav = [
   { Home = "index.md" },
   { "Getting started" = "getting-started.md" },
-  { Concepts = [
-      { "Authentication and admin" = "authentication-and-admin.md" },
-      { "Access control models" = "access-control.md" },
-    ]
-  },
-  { Architecture = [
-      { "Architecture overview" = "architecture.md" },
-      { "Project structure" = "project-structure.md" },
-    ]
-  },
-  { Operations = [
-      { Configuration = "configuration.md" },
-      { Logging = "logging.md" },
-      { Deployment = "deployment.md" },
-    ]
-  },
+  { Concepts = [ { "Authentication and admin" = "authentication-and-admin.md" }, { "Access control models" = "access-control.md" } ] },
+  { Architecture = [ { "Architecture overview" = "architecture.md" }, { "Project structure" = "project-structure.md" } ] },
+  { Operations = [ { Configuration = "configuration.md" }, { Logging = "logging.md" }, { Deployment = "deployment.md" } ] },
   { Contributing = "contributing.md" },
 ]
 

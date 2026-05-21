@@ -50,3 +50,36 @@ class ABACDecisionDTO(BaseModel):
     matched_policy: Optional[str] = None
     matched_event:  Optional[str] = None
     reason:         str
+
+
+# ── Response DTOs ─────────────────────────────────────────────────────────────
+
+class ABACValueDTO(BaseModel):
+    value: str
+
+
+class ABACLocationResponseDTO(BaseModel):
+    center:    Optional[GeoPointDTO] = None
+    radius_km: float = 1.0
+
+
+class ABACTimeWindowResponseDTO(BaseModel):
+    mode:  TimeWindowMode
+    start: Optional[str] = None
+    end:   Optional[str] = None
+
+
+class ABACEventResponseDTO(BaseModel):
+    event_id: str
+    subject:  ABACValueDTO
+    resource: ABACValueDTO
+    location: ABACLocationResponseDTO
+    time:     ABACTimeWindowResponseDTO
+    action:   ABACValueDTO
+
+
+class ABACPolicyResponseDTO(BaseModel):
+    policy_id: str
+    name:      str
+    effect:    Effect
+    events:    List[ABACEventResponseDTO]

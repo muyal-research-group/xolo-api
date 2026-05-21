@@ -8,8 +8,9 @@ import xoloapi.middleware as MX
 import commonx.dto.xolo as DTO
 
 from xoloapi.accounts.dependencies import require_existing_account
-from xoloapi.middleware.apikey import require_api_key
+from xoloapi.middleware.apikey import require_api_key, require_admin_or_api_key
 from xoloapi.rbac.application.rbac_service import RBACService
+from xoloapi.groups.infrastructure.mongo_security_group_repository import MongoSecurityGroupRepository
 from xoloapi.rbac.dto import (
     AssignmentDTO,
     AssignRoleDTO,
@@ -17,6 +18,8 @@ from xoloapi.rbac.dto import (
     CheckResultDTO,
     CreateRoleDTO,
     EffectivePermissionsDTO,
+    HasRoleCheckDTO,
+    HasRoleDTO,
     ParentRoleDTO,
     PermissionDTO,
     RoleDTO,
@@ -56,11 +59,19 @@ def _assignment_repo() -> MongoRoleAssignmentRepository:
         collection_name = CollectionNames.RBAC_ASSIGNMENTS_COLLECTION_NAME,
     )
 
+def _group_repo() -> MongoSecurityGroupRepository:
+    return MongoSecurityGroupRepository(
+        db          = DbX.get_database(),
+        groups_col  = CollectionNames.ACL_GROUPS_COLLECTION_NAME,
+        members_col = CollectionNames.ACL_GROUP_MEMBERS_COLLECTION_NAME,
+    )
+
 def get_rbac_service(
     role_repo:       MongoRoleRepository            = Depends(_role_repo),
     assignment_repo: MongoRoleAssignmentRepository  = Depends(_assignment_repo),
+    group_repo:      MongoSecurityGroupRepository   = Depends(_group_repo),
 ) -> RBACService:
-    return RBACService(role_repo=role_repo, assignment_repo=assignment_repo)
+    return RBACService(role_repo=role_repo, assignment_repo=assignment_repo, group_repo=group_repo)
 
 
 # ── Role CRUD ─────────────────────────────────────────────────────────────────
@@ -322,6 +333,25 @@ async def check_permission(
     return CheckResultDTO(subject_id=dto.subject_id, permission=dto.permission, has_access=has_access)
 
 
+@router.post("/has-role", status_code=status.HTTP_200_OK, response_model=HasRoleDTO)
+async def has_role(
+    account_id: str,
+    dto:     HasRoleCheckDTO,
+    _:       object      = Depends(require_api_key("rbac")),
+    me:      DTO.UserDTO = Depends(MX.get_current_user),
+    service: RBACService = Depends(get_rbac_service),
+):
+    t1     = T.time()
+    result = await service.has_role(account_id=account_id, subject_id=dto.subject_id, role_id=dto.role_id)
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error({"action": "rbac.has_role.error", "subject": dto.subject_id, "role": dto.role_id, "error": str(err)})
+        raise err.to_http_exception()
+    found = result.unwrap()
+    log.info({"action": "rbac.has_role", "subject": dto.subject_id, "role": dto.role_id, "result": found, "time": round(T.time() - t1, 4)})
+    return HasRoleDTO(subject_id=dto.subject_id, role_id=dto.role_id, has_role=found)
+
+
 @router.get("/subjects/{subject_id}/permissions", status_code=status.HTTP_200_OK, response_model=EffectivePermissionsDTO)
 async def get_effective_permissions(
     account_id: str,
@@ -346,7 +376,7 @@ async def get_effective_permissions(
 @router.get("/roles/list", status_code=status.HTTP_200_OK)
 async def list_roles_discovery(
     account_id: str,
-    _:       object      = Depends(require_api_key("rbac")),
+    _:       object      = Depends(require_admin_or_api_key("rbac")),
     service: RBACService = Depends(get_rbac_service),
 ):
     t1     = T.time()
@@ -363,7 +393,7 @@ async def list_roles_discovery(
 @router.get("/permissions/list", status_code=status.HTTP_200_OK)
 async def list_permissions_discovery(
     account_id: str,
-    _:       object      = Depends(require_api_key("rbac")),
+    _:       object      = Depends(require_admin_or_api_key("rbac")),
 ):
     t1 = T.time()
     # Return all available permissions (can be expanded based on your permission model)

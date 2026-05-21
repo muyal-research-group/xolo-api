@@ -7,7 +7,6 @@ class APIKeyScope(str, Enum):
     RBAC     = "rbac"
     ABAC     = "abac"
     NGAC     = "ngac"
-    POLICIES = "policies"
     SCOPES   = "scopes"
     LICENSES = "licenses"
     ALL      = "all"

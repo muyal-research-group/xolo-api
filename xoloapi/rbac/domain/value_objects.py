@@ -3,7 +3,6 @@
 Permission format: "resource_type:action"  e.g. "document:read", "report:*", "*:*"
 Wildcards are supported: "*" in resource_type or action matches any value.
 """
-from enum import Enum
 from pydantic import BaseModel
 
 

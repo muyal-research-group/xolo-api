@@ -24,6 +24,7 @@ class AccessGrant(BaseModel):
 
 # ── Aggregate root — one document per protected resource ──────────────────────
 
+
 class ResourcePolicy(BaseModel):
     account_id:  str
     resource_id: str
@@ -132,40 +133,3 @@ class ResourcePolicy(BaseModel):
     def _find_grant(self, principal_id: str) -> Optional[AccessGrant]:
         return next((g for g in self.grants if g.principal.id == principal_id), None)
 
-
-# ── Aggregate root — security group ──────────────────────────────────────────
-
-class SecurityGroup(BaseModel):
-    account_id:  str
-    group_id:    str
-    name:        str
-    owner_id:    str
-    description: Optional[str] = None
-    created_at:  datetime.datetime = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
-    )
-    updated_at:  datetime.datetime = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
-    )
-
-    def assert_owner(self, caller_id: str) -> Result[None, XoloException]:
-        if self.owner_id != caller_id:
-            return Err(AccessDeniedError(
-                "Only the group owner can perform this operation",
-                metadata={"group_id": self.group_id},
-            ))
-        return Ok(None)
-
-    def is_owned_by(self, user_id: str) -> bool:
-        return self.owner_id == user_id
-
-
-# ── Group membership record (kept in separate collection for scalability) ─────
-
-class GroupMember(BaseModel):
-    account_id: str
-    group_id:   str
-    user_id:    str
-    joined_at:  datetime.datetime = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
-    )

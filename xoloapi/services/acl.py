@@ -5,10 +5,10 @@ from option import Err, Ok
 
 import commonx.dto.xolo as DTO
 from xoloapi.acl.application.acl_service import ACLService
-from xoloapi.acl.application.group_service import GroupService
+from xoloapi.groups.application.group_service import GroupService
 from xoloapi.acl.domain.value_objects import PrincipalType
 from xoloapi.acl.infrastructure.mongo_resource_policy_repository import MongoResourcePolicyRepository
-from xoloapi.acl.infrastructure.mongo_security_group_repository import MongoSecurityGroupRepository
+from xoloapi.groups.infrastructure.mongo_security_group_repository import MongoSecurityGroupRepository
 from xoloapi.db.constants import CollectionNames
 
 

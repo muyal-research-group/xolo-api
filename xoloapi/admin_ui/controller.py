@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import time as T
+import types
 from urllib.parse import quote
 
 import jwt
@@ -12,22 +13,21 @@ from pydantic import ValidationError
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from xoloapi.abac.domain.aggregates import ABACAccessRequest, ABACEvent
+from xoloapi.apikeys.application.apikey_service import APIKeyService
 from xoloapi.log import Log
 
-import xoloapi.abac.dto as ABACDTO
 import xoloapi.accounts.dto as AccountsDTO
 import xoloapi.apikeys.dto as APIKeyDTO
 import xoloapi.config as Cfg
 import xoloapi.licenses.dto as LicenseDTO
-import xoloapi.ngac.dto as NGACDTO
-import xoloapi.rbac.dto as RBACDTO
 import xoloapi.scopes.dto as ScopeDTO
 import xoloapi.users.dto as UserDTO
 from xoloapi.abac.application.abac_service import ABACService
 from xoloapi.abac.controller import get_abac_service
-from xoloapi.abac.domain.value_objects import Effect as ABACEffect
+from xoloapi.abac.domain.value_objects import Action, Effect as ABACEffect, GeoPoint, Location, Resource, Subject, TimeWindow, TimeWindowMode
 from xoloapi.acl.application.acl_service import ACLService
-from xoloapi.acl.application.group_service import GroupService
+from xoloapi.groups.application.group_service import GroupService
 from xoloapi.acl.controller import get_acl_service, get_group_service
 from xoloapi.accounts.application.accounts_service import AccountsService
 from xoloapi.accounts.controller import get_accounts_service
@@ -190,7 +190,7 @@ def _parse_json_object(raw_value: str) -> dict[str, str]:
     return {str(key): str(value) for key, value in parsed.items()}
 
 
-def _build_abac_policy_dto(
+def _build_abac_policy(
     *,
     name: str,
     effect: str,
@@ -203,30 +203,25 @@ def _build_abac_policy_dto(
     time_start: str,
     time_end: str,
     action: str,
-) -> ABACDTO.CreateABACPolicyDTO:
-    location = None
+) -> tuple[str, ABACEffect, list[ABACEvent]]:
+    from nanoid import generate
+
+    location = Location()
     if location_lat.strip() and location_lng.strip():
-        location = ABACDTO.GeoZoneDTO(
-            lat=float(location_lat.strip()),
-            lng=float(location_lng.strip()),
+        location = Location(
+            center=GeoPoint(lat=float(location_lat.strip()), lng=float(location_lng.strip())),
             radius_km=float(location_radius_km.strip() or "1.0"),
         )
-    parsed_mode = ABACDTO.TimeWindowMode(time_mode.strip().lower() or "wildcard")
-    return ABACDTO.CreateABACPolicyDTO(
-        name=name.strip(),
-        effect=ABACEffect(effect.strip().upper()),
-        events=[
-            ABACDTO.CreateABACEventDTO(
-                subject=subject.strip(),
-                resource=resource.strip(),
-                location=location,
-                time_mode=parsed_mode,
-                time_start=time_start.strip() or None,
-                time_end=time_end.strip() or None,
-                action=action.strip(),
-            )
-        ],
-    )
+    parsed_mode = TimeWindowMode(time_mode.strip().lower() or "wildcard")
+    events = [ABACEvent(
+        event_id = f"ev-{generate(size=10)}",
+        subject  = Subject(value=subject.strip()),
+        resource = Resource(value=resource.strip()),
+        location = location,
+        time     = TimeWindow(mode=parsed_mode, start=time_start.strip() or None, end=time_end.strip() or None),
+        action   = Action(value=action.strip()),
+    )]
+    return name.strip(), ABACEffect(effect.strip().upper()), events
 
 
 async def _accounts_metadata(accounts_service: AccountsService):
@@ -650,7 +645,7 @@ async def apikeys_page(
 async def delete_apikey(
     request: Request,
     key_id: str = Form(...),
-    service=Depends(get_apikey_service),
+    service: APIKeyService = Depends(get_apikey_service),
     accounts_service: AccountsService = Depends(get_accounts_service),
 ):
     session = _ensure_admin_session(request)
@@ -705,7 +700,7 @@ async def delete_apikey(
 async def rotate_apikey(
     request: Request,
     key_id: str = Form(...),
-    service=Depends(get_apikey_service),
+    service: APIKeyService = Depends(get_apikey_service),
     accounts_service: AccountsService = Depends(get_accounts_service),
 ):
     session = _ensure_admin_session(request)
@@ -771,7 +766,7 @@ async def create_apikey(
     name: str = Form(...),
     scopes: list[str] = Form(...),
     expires_at: str = Form(""),
-    service=Depends(get_apikey_service),
+    service: APIKeyService = Depends(get_apikey_service),
     accounts_service: AccountsService = Depends(get_accounts_service),
 ):
     session = _ensure_admin_session(request)
@@ -1904,7 +1899,8 @@ async def delete_acl_resource(
 @router.post("/acl/check", response_class=HTMLResponse, name="admin_check_acl")
 async def check_acl(
     request: Request,
-    user_id: str = Form(...),
+    principal_id: str = Form(...),
+    principal_type: str = Form(default="USER"),
     resource_id: str = Form(...),
     permissions: str = Form(...),
     acl_service: ACLService = Depends(get_acl_service),
@@ -1921,22 +1917,23 @@ async def check_acl(
         parsed_permissions = _parse_csv_list(permissions)
         result = await acl_service.check(
             account_id=current_account_id,
-            user_id=user_id.strip(),
+            user_id=principal_id.strip(),
             resource_id=resource_id.strip(),
             permissions=parsed_permissions,
         )
         if result.is_err:
             error = result.unwrap_err()
             error_message = _error_message(error)
-            log.error(build_log_payload("admin_ui.acl.check.error", started_at=t1, error=error, account_id=current_account_id, user_id=user_id.strip(), resource_id=resource_id.strip()))
+            log.error(build_log_payload("admin_ui.acl.check.error", started_at=t1, error=error, account_id=current_account_id, principal_id=principal_id.strip(), principal_type=principal_type.strip(), resource_id=resource_id.strip()))
         else:
             acl_check_result = {
-                "user_id": user_id.strip(),
+                "principal_id": principal_id.strip(),
+                "principal_type": principal_type.strip().upper(),
                 "resource_id": resource_id.strip(),
                 "permissions": parsed_permissions,
                 "has_permission": result.unwrap(),
             }
-            log.info(build_log_payload("admin_ui.acl.check", started_at=t1, account_id=current_account_id, user_id=user_id.strip(), resource_id=resource_id.strip(), has_permission=result.unwrap()))
+            log.info(build_log_payload("admin_ui.acl.check", started_at=t1, account_id=current_account_id, principal_id=principal_id.strip(), principal_type=principal_type.strip(), resource_id=resource_id.strip(), has_permission=result.unwrap()))
     policies = []
     groups = []
     load_error = None
@@ -1990,6 +1987,7 @@ async def rbac_page(
         success_message=None,
         roles=roles,
         assignments=assignments,
+        rbac_check_result=None,
         current_account_id=current_account_id,
     )
 
@@ -2505,7 +2503,7 @@ async def create_abac_policy(
     evaluation_result = None
     if error_message is None:
         try:
-            dto = _build_abac_policy_dto(
+            policy_name, policy_effect, events = _build_abac_policy(
                 name=name,
                 effect=effect,
                 subject=subject,
@@ -2518,14 +2516,14 @@ async def create_abac_policy(
                 time_end=time_end,
                 action=action,
             )
-            result = await abac_service.create_policy(current_account_id, dto)
+            result = await abac_service.create_policy(current_account_id, policy_name, policy_effect, events)
             if result.is_err:
                 error = result.unwrap_err()
                 error_message = _error_message(error)
-                log.error(build_log_payload("admin_ui.abac.policy.create.error", started_at=t1, error=error, account_id=current_account_id, policy_name=dto.name))
+                log.error(build_log_payload("admin_ui.abac.policy.create.error", started_at=t1, error=error, account_id=current_account_id, policy_name=policy_name))
             else:
-                success_message = f"ABAC policy '{dto.name}' created."
-                log.info(build_log_payload("admin_ui.abac.policy.create", started_at=t1, account_id=current_account_id, policy_name=dto.name, policy_id=result.unwrap()))
+                success_message = f"ABAC policy '{policy_name}' created."
+                log.info(build_log_payload("admin_ui.abac.policy.create", started_at=t1, account_id=current_account_id, policy_name=policy_name, policy_id=result.unwrap()))
         except (ValueError, ValidationError) as error:
             error_message = str(error)
             log.warning(build_log_payload("admin_ui.abac.policy.create.error", started_at=t1, error=error, account_id=current_account_id, policy_name=name.strip()))
@@ -2576,7 +2574,7 @@ async def update_abac_policy(
     evaluation_result = None
     if error_message is None:
         try:
-            dto = _build_abac_policy_dto(
+            policy_name, policy_effect, events = _build_abac_policy(
                 name=name,
                 effect=effect,
                 subject=subject,
@@ -2589,14 +2587,14 @@ async def update_abac_policy(
                 time_end=time_end,
                 action=action,
             )
-            result = await abac_service.update_policy(current_account_id, policy_id.strip(), dto)
+            result = await abac_service.update_policy(current_account_id, policy_id.strip(), policy_name, policy_effect, events)
             if result.is_err:
                 error = result.unwrap_err()
                 error_message = _error_message(error)
                 log.error(build_log_payload("admin_ui.abac.policy.update.error", started_at=t1, error=error, account_id=current_account_id, policy_id=policy_id.strip()))
             else:
-                success_message = f"ABAC policy '{policy_id.strip()}' updated."
-                log.info(build_log_payload("admin_ui.abac.policy.update", started_at=t1, account_id=current_account_id, policy_id=policy_id.strip()))
+                success_message = f"ABAC policy '{policy_name}' updated."
+                log.info(build_log_payload("admin_ui.abac.policy.update", started_at=t1, account_id=current_account_id, policy_id=policy_id.strip(), policy_name=policy_name))
         except (ValueError, ValidationError) as error:
             error_message = str(error)
             log.warning(build_log_payload("admin_ui.abac.policy.update.error", started_at=t1, error=error, account_id=current_account_id, policy_id=policy_id.strip()))
@@ -2684,20 +2682,20 @@ async def evaluate_abac(
     evaluation_result = None
     if error_message is None:
         try:
-            location_dto = None
+            location_point = None
             if location_lat.strip() and location_lng.strip():
-                location_dto = ABACDTO.GeoPointDTO(
+                location_point = GeoPoint(
                     lat=float(location_lat.strip()),
                     lng=float(location_lng.strip()),
                 )
-            dto = ABACDTO.ABACEvaluateDTO(
+            access_request = ABACAccessRequest(
                 subject=subject.strip(),
                 resource=resource.strip(),
-                location=location_dto,
+                location=location_point,
                 time=time.strip() or None,
                 action=action.strip(),
             )
-            result = await abac_service.evaluate(current_account_id, dto)
+            result = await abac_service.evaluate(current_account_id, access_request)
             if result.is_err:
                 error = result.unwrap_err()
                 error_message = _error_message(error)
@@ -2786,19 +2784,23 @@ async def create_ngac_node(
     access_decision = None
     if error_message is None:
         try:
-            dto = NGACDTO.CreateNodeDTO(
-                name=name.strip(),
-                node_type=NodeType(node_type),
-                properties=_parse_json_object(properties_json),
+            node_name      = name.strip()
+            node_type_val  = NodeType(node_type)
+            node_props     = _parse_json_object(properties_json)
+            result = await ngac_service.create_node(
+                current_account_id,
+                node_type  = node_type_val,
+                name       = node_name,
+                properties = node_props,
+                owner_id   = ADMIN_UI_ACTOR_ID,
             )
-            result = await ngac_service.create_node(current_account_id, dto, owner_id=ADMIN_UI_ACTOR_ID)
             if result.is_err:
                 error = result.unwrap_err()
                 error_message = _error_message(error)
-                log.error(build_log_payload("admin_ui.ngac.node.create.error", started_at=t1, error=error, account_id=current_account_id, node_name=dto.name, node_type=dto.node_type.value))
+                log.error(build_log_payload("admin_ui.ngac.node.create.error", started_at=t1, error=error, account_id=current_account_id, node_name=node_name, node_type=node_type_val.value))
             else:
-                success_message = f"NGAC node '{dto.name}' created."
-                log.info(build_log_payload("admin_ui.ngac.node.create", started_at=t1, account_id=current_account_id, node_name=dto.name, node_id=result.unwrap(), node_type=dto.node_type.value))
+                success_message = f"NGAC node '{node_name}' created."
+                log.info(build_log_payload("admin_ui.ngac.node.create", started_at=t1, account_id=current_account_id, node_name=name, node_id=result.unwrap(), node_type=node_type))
         except (ValueError, ValidationError, json.JSONDecodeError) as error:
             error_message = str(error)
             log.warning(build_log_payload("admin_ui.ngac.node.create.error", started_at=t1, error=error, account_id=current_account_id, node_name=name.strip(), node_type=node_type))
@@ -2888,16 +2890,17 @@ async def add_ngac_assignment(
     current_account_id, error_message = await _active_account_selection(accounts_service, session, required=True)
     success_message = None
     access_decision = None
-    dto = NGACDTO.AssignDTO(from_id=from_id.strip(), to_id=to_id.strip())
+    assign_from = from_id.strip()
+    assign_to   = to_id.strip()
     if error_message is None:
-        result = await ngac_service.assign(current_account_id, dto, owner_id=ADMIN_UI_ACTOR_ID, is_admin=True)
+        result = await ngac_service.assign(current_account_id, from_id=assign_from, to_id=assign_to, owner_id=ADMIN_UI_ACTOR_ID, is_admin=True)
         if result.is_err:
             error = result.unwrap_err()
             error_message = _error_message(error)
-            log.error(build_log_payload("admin_ui.ngac.assignment.add.error", started_at=t1, error=error, account_id=current_account_id, from_id=dto.from_id, to_id=dto.to_id))
+            log.error(build_log_payload("admin_ui.ngac.assignment.add.error", started_at=t1, error=error, account_id=current_account_id, from_id=assign_from, to_id=assign_to))
         else:
-            success_message = f"Assignment '{dto.from_id} -> {dto.to_id}' created."
-            log.info(build_log_payload("admin_ui.ngac.assignment.add", started_at=t1, account_id=current_account_id, from_id=dto.from_id, to_id=dto.to_id, assignment_id=result.unwrap()))
+            success_message = f"Assignment '{assign_from} -> {assign_to}' created."
+            log.info(build_log_payload("admin_ui.ngac.assignment.add", started_at=t1, account_id=current_account_id, from_id=assign_from, to_id=assign_to, assignment_id=result.unwrap()))
     nodes = []
     assignments = []
     associations = []
@@ -2937,16 +2940,17 @@ async def remove_ngac_assignment(
     current_account_id, error_message = await _active_account_selection(accounts_service, session, required=True)
     success_message = None
     access_decision = None
-    dto = NGACDTO.RemoveAssignmentDTO(from_id=from_id.strip(), to_id=to_id.strip())
+    remove_from = from_id.strip()
+    remove_to   = to_id.strip()
     if error_message is None:
-        result = await ngac_service.remove_assignment(current_account_id, dto, requester_key=ADMIN_UI_ACTOR_ID, is_admin=True)
+        result = await ngac_service.remove_assignment(current_account_id, from_id=remove_from, to_id=remove_to, requester_key=ADMIN_UI_ACTOR_ID, is_admin=True)
         if result.is_err:
             error = result.unwrap_err()
             error_message = _error_message(error)
-            log.error(build_log_payload("admin_ui.ngac.assignment.remove.error", started_at=t1, error=error, account_id=current_account_id, from_id=dto.from_id, to_id=dto.to_id))
+            log.error(build_log_payload("admin_ui.ngac.assignment.remove.error", started_at=t1, error=error, account_id=current_account_id, from_id=remove_from, to_id=remove_to))
         else:
-            success_message = f"Assignment '{dto.from_id} -> {dto.to_id}' removed."
-            log.info(build_log_payload("admin_ui.ngac.assignment.remove", started_at=t1, account_id=current_account_id, from_id=dto.from_id, to_id=dto.to_id))
+            success_message = f"Assignment '{remove_from} -> {remove_to}' removed."
+            log.info(build_log_payload("admin_ui.ngac.assignment.remove", started_at=t1, account_id=current_account_id, from_id=remove_from, to_id=remove_to))
     nodes = []
     assignments = []
     associations = []
@@ -2987,20 +2991,25 @@ async def add_ngac_association(
     current_account_id, error_message = await _active_account_selection(accounts_service, session, required=True)
     success_message = None
     access_decision = None
-    dto = NGACDTO.AssociateDTO(
-        user_attribute_id=user_attribute_id.strip(),
-        object_attribute_id=object_attribute_id.strip(),
-        operations=_parse_csv_list(operations),
-    )
+    assoc_ua_id  = user_attribute_id.strip()
+    assoc_oa_id  = object_attribute_id.strip()
+    assoc_ops    = _parse_csv_list(operations)
     if error_message is None:
-        result = await ngac_service.associate(current_account_id, dto, owner_id=ADMIN_UI_ACTOR_ID, is_admin=True)
+        result = await ngac_service.associate(
+            current_account_id,
+            user_attribute_id   = assoc_ua_id,
+            object_attribute_id = assoc_oa_id,
+            operations          = assoc_ops,
+            owner_id            = ADMIN_UI_ACTOR_ID,
+            is_admin            = True,
+        )
         if result.is_err:
             error = result.unwrap_err()
             error_message = _error_message(error)
-            log.error(build_log_payload("admin_ui.ngac.association.add.error", started_at=t1, error=error, account_id=current_account_id, user_attribute_id=dto.user_attribute_id, object_attribute_id=dto.object_attribute_id))
+            log.error(build_log_payload("admin_ui.ngac.association.add.error", started_at=t1, error=error, account_id=current_account_id, user_attribute_id=assoc_ua_id, object_attribute_id=assoc_oa_id))
         else:
-            success_message = f"Association created between '{dto.user_attribute_id}' and '{dto.object_attribute_id}'."
-            log.info(build_log_payload("admin_ui.ngac.association.add", started_at=t1, account_id=current_account_id, user_attribute_id=dto.user_attribute_id, object_attribute_id=dto.object_attribute_id, association_id=result.unwrap()))
+            success_message = f"Association created between '{assoc_ua_id}' and '{assoc_oa_id}'."
+            log.info(build_log_payload("admin_ui.ngac.association.add", started_at=t1, account_id=current_account_id, user_attribute_id=assoc_ua_id, object_attribute_id=assoc_oa_id, association_id=result.unwrap()))
     nodes = []
     assignments = []
     associations = []
@@ -3089,16 +3098,19 @@ async def check_ngac_access(
     success_message = None
     access_decision = None
     if error_message is None:
-        dto = NGACDTO.CheckAccessDTO(user_id=user_id.strip(), object_id=object_id.strip(), operation=operation.strip())
-        result = await ngac_service.check_access(current_account_id, dto)
+        check_user_id  = user_id.strip()
+        check_obj_id   = object_id.strip()
+        check_op       = operation.strip()
+        result = await ngac_service.check_access(current_account_id, user_id=check_user_id, object_id=check_obj_id, operation=check_op)
         if result.is_err:
             error = result.unwrap_err()
             error_message = _error_message(error)
-            log.error(build_log_payload("admin_ui.ngac.check.error", started_at=t1, error=error, account_id=current_account_id, user_id=dto.user_id, object_id=dto.object_id, operation=dto.operation))
+            log.error(build_log_payload("admin_ui.ngac.check.error", started_at=t1, error=error, account_id=current_account_id, user_id=check_user_id, object_id=check_obj_id, operation=check_op))
         else:
-            access_decision = result.unwrap()
+            allowed, reason = result.unwrap()
+            access_decision = types.SimpleNamespace(allowed=allowed, reason=reason)
             success_message = "NGAC access request evaluated."
-            log.info(build_log_payload("admin_ui.ngac.check", started_at=t1, account_id=current_account_id, user_id=dto.user_id, object_id=dto.object_id, operation=dto.operation, allowed=access_decision.allowed))
+            log.info(build_log_payload("admin_ui.ngac.check", started_at=t1, account_id=current_account_id, user_id=check_user_id, object_id=check_obj_id, operation=check_op, allowed=allowed))
     nodes = []
     assignments = []
     associations = []

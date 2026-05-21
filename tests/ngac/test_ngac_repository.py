@@ -1,7 +1,7 @@
 import pytest
 from xoloapi.ngac.enums import NodeType
-from xoloapi.ngac.models import NGACAssignment, NGACAssociation, NGACNode
-from xoloapi.ngac.repository import NGACRepository
+from xoloapi.ngac.domain.aggregates import NGACAssignment, NGACAssociation, NGACNode
+from xoloapi.ngac.infrastructure.mongo_ngac_repository import MongoNGACRepository
 from tests.ngac.conftest import ACCOUNT_ID
 
 
@@ -26,44 +26,47 @@ def _association(ua: str, oa: str, idx: int = 0) -> NGACAssociation:
 # ── Nodes: create ──────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_create_node_returns_id(ngac_repo: NGACRepository):
+async def test_create_node_returns_id(ngac_repo: MongoNGACRepository):
     result = await ngac_repo.create_node(_node("n-u1", NodeType.USER))
     assert result.is_ok
     assert result.unwrap() == "n-u1"
 
 
 @pytest.mark.asyncio
-async def test_create_duplicate_node_returns_err(ngac_repo: NGACRepository):
+async def test_create_duplicate_node_returns_err(ngac_repo: MongoNGACRepository):
     await ngac_repo.create_node(_node("n-dup", NodeType.USER))
     result = await ngac_repo.create_node(_node("n-dup", NodeType.USER))
     assert result.is_err
 
 
 @pytest.mark.asyncio
-async def test_get_node_returns_correct_record(ngac_repo: NGACRepository):
+async def test_get_node_returns_correct_record(ngac_repo: MongoNGACRepository):
     await ngac_repo.create_node(_node("n-ua", NodeType.USER_ATTRIBUTE))
-    result = await ngac_repo.get_node(ACCOUNT_ID, "n-ua")
+    result = await ngac_repo.find_node(ACCOUNT_ID, "n-ua")
     assert result.is_ok
-    assert result.unwrap().node_type == NodeType.USER_ATTRIBUTE
+    node = result.unwrap()
+    assert node.is_some
+    assert node.unwrap().node_type == NodeType.USER_ATTRIBUTE
 
 
 @pytest.mark.asyncio
-async def test_get_nonexistent_node_returns_err(ngac_repo: NGACRepository):
-    result = await ngac_repo.get_node(ACCOUNT_ID, "ghost")
-    assert result.is_err
+async def test_get_nonexistent_node_returns_none(ngac_repo: MongoNGACRepository):
+    result = await ngac_repo.find_node(ACCOUNT_ID, "ghost")
+    assert result.is_ok
+    assert result.unwrap().is_none
 
 
 # ── Nodes: list ────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_list_nodes_empty(ngac_repo: NGACRepository):
+async def test_list_nodes_empty(ngac_repo: MongoNGACRepository):
     result = await ngac_repo.list_nodes(ACCOUNT_ID)
     assert result.is_ok
     assert result.unwrap() == []
 
 
 @pytest.mark.asyncio
-async def test_list_nodes_returns_all(ngac_repo: NGACRepository):
+async def test_list_nodes_returns_all(ngac_repo: MongoNGACRepository):
     await ngac_repo.create_node(_node("n-u",  NodeType.USER))
     await ngac_repo.create_node(_node("n-ua", NodeType.USER_ATTRIBUTE))
     await ngac_repo.create_node(_node("n-pc", NodeType.POLICY_CLASS))
@@ -74,7 +77,7 @@ async def test_list_nodes_returns_all(ngac_repo: NGACRepository):
 
 
 @pytest.mark.asyncio
-async def test_list_nodes_with_type_filter(ngac_repo: NGACRepository):
+async def test_list_nodes_with_type_filter(ngac_repo: MongoNGACRepository):
     await ngac_repo.create_node(_node("n-u",   NodeType.USER))
     await ngac_repo.create_node(_node("n-ua1", NodeType.USER_ATTRIBUTE))
     await ngac_repo.create_node(_node("n-ua2", NodeType.USER_ATTRIBUTE))
@@ -90,21 +93,23 @@ async def test_list_nodes_with_type_filter(ngac_repo: NGACRepository):
 # ── Nodes: delete + cascade ────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_delete_node_removes_it(ngac_repo: NGACRepository):
+async def test_delete_node_removes_it(ngac_repo: MongoNGACRepository):
     await ngac_repo.create_node(_node("n-del", NodeType.USER))
     result = await ngac_repo.delete_node(ACCOUNT_ID, "n-del")
     assert result.is_ok
-    assert (await ngac_repo.get_node(ACCOUNT_ID, "n-del")).is_err
+    found = await ngac_repo.find_node(ACCOUNT_ID, "n-del")
+    assert found.is_ok
+    assert found.unwrap().is_none
 
 
 @pytest.mark.asyncio
-async def test_delete_nonexistent_node_returns_err(ngac_repo: NGACRepository):
+async def test_delete_nonexistent_node_returns_err(ngac_repo: MongoNGACRepository):
     result = await ngac_repo.delete_node(ACCOUNT_ID, "ghost")
     assert result.is_err
 
 
 @pytest.mark.asyncio
-async def test_delete_node_cascades_assignments(ngac_repo: NGACRepository):
+async def test_delete_node_cascades_assignments(ngac_repo: MongoNGACRepository):
     await ngac_repo.create_node(_node("n-u",  NodeType.USER))
     await ngac_repo.create_node(_node("n-ua", NodeType.USER_ATTRIBUTE))
     await ngac_repo.create_assignment(_assignment("n-u", "n-ua"))
@@ -116,7 +121,7 @@ async def test_delete_node_cascades_assignments(ngac_repo: NGACRepository):
 
 
 @pytest.mark.asyncio
-async def test_delete_node_cascades_associations(ngac_repo: NGACRepository):
+async def test_delete_node_cascades_associations(ngac_repo: MongoNGACRepository):
     await ngac_repo.create_node(_node("n-ua", NodeType.USER_ATTRIBUTE))
     await ngac_repo.create_node(_node("n-oa", NodeType.OBJECT_ATTRIBUTE))
     await ngac_repo.create_association(_association("n-ua", "n-oa"))
@@ -130,13 +135,13 @@ async def test_delete_node_cascades_associations(ngac_repo: NGACRepository):
 # ── Assignments ────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_create_assignment_returns_id(ngac_repo: NGACRepository):
+async def test_create_assignment_returns_id(ngac_repo: MongoNGACRepository):
     result = await ngac_repo.create_assignment(_assignment("n-u", "n-ua"))
     assert result.is_ok
 
 
 @pytest.mark.asyncio
-async def test_create_assignment_idempotent(ngac_repo: NGACRepository):
+async def test_create_assignment_idempotent(ngac_repo: MongoNGACRepository):
     a = _assignment("n-u", "n-ua")
     await ngac_repo.create_assignment(a)
     result = await ngac_repo.create_assignment(a)  # duplicate
@@ -147,7 +152,7 @@ async def test_create_assignment_idempotent(ngac_repo: NGACRepository):
 
 
 @pytest.mark.asyncio
-async def test_remove_assignment(ngac_repo: NGACRepository):
+async def test_remove_assignment(ngac_repo: MongoNGACRepository):
     await ngac_repo.create_assignment(_assignment("n-u", "n-ua"))
     result = await ngac_repo.remove_assignment(ACCOUNT_ID, "n-u", "n-ua")
     assert result.is_ok
@@ -157,13 +162,13 @@ async def test_remove_assignment(ngac_repo: NGACRepository):
 
 
 @pytest.mark.asyncio
-async def test_remove_nonexistent_assignment_returns_err(ngac_repo: NGACRepository):
+async def test_remove_nonexistent_assignment_returns_err(ngac_repo: MongoNGACRepository):
     result = await ngac_repo.remove_assignment(ACCOUNT_ID, "ghost", "ghost2")
     assert result.is_err
 
 
 @pytest.mark.asyncio
-async def test_list_assignments_empty(ngac_repo: NGACRepository):
+async def test_list_assignments_empty(ngac_repo: MongoNGACRepository):
     result = await ngac_repo.list_assignments(ACCOUNT_ID)
     assert result.is_ok
     assert result.unwrap() == []
@@ -172,13 +177,13 @@ async def test_list_assignments_empty(ngac_repo: NGACRepository):
 # ── Associations ───────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_create_association_returns_id(ngac_repo: NGACRepository):
+async def test_create_association_returns_id(ngac_repo: MongoNGACRepository):
     result = await ngac_repo.create_association(_association("n-ua", "n-oa"))
     assert result.is_ok
 
 
 @pytest.mark.asyncio
-async def test_create_association_upserts_on_duplicate(ngac_repo: NGACRepository):
+async def test_create_association_upserts_on_duplicate(ngac_repo: MongoNGACRepository):
     base = _association("n-ua", "n-oa", 0)
     await ngac_repo.create_association(base)
 
@@ -197,7 +202,7 @@ async def test_create_association_upserts_on_duplicate(ngac_repo: NGACRepository
 
 
 @pytest.mark.asyncio
-async def test_remove_association(ngac_repo: NGACRepository):
+async def test_remove_association(ngac_repo: MongoNGACRepository):
     assoc = _association("n-ua", "n-oa")
     assoc_id = (await ngac_repo.create_association(assoc)).unwrap()
 
@@ -210,7 +215,7 @@ async def test_remove_association(ngac_repo: NGACRepository):
 
 
 @pytest.mark.asyncio
-async def test_remove_nonexistent_association_returns_err(ngac_repo: NGACRepository):
+async def test_remove_nonexistent_association_returns_err(ngac_repo: MongoNGACRepository):
     result = await ngac_repo.remove_association(ACCOUNT_ID, "ghost-id")
     assert result.is_err
 
@@ -218,7 +223,7 @@ async def test_remove_nonexistent_association_returns_err(ngac_repo: NGACReposit
 # ── load_graph_data ────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_load_graph_data_returns_all_collections(ngac_repo: NGACRepository):
+async def test_load_graph_data_returns_all_collections(ngac_repo: MongoNGACRepository):
     await ngac_repo.create_node(_node("n-u",  NodeType.USER))
     await ngac_repo.create_node(_node("n-ua", NodeType.USER_ATTRIBUTE))
     await ngac_repo.create_node(_node("n-o",  NodeType.OBJECT))

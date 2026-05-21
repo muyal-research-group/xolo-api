@@ -25,7 +25,6 @@ Business rules this suite verifies
   5. Workers cannot mutate any NGAC node owned by Alice.
   6. A superadmin bypasses all ownership checks.
 """
-import os
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -41,12 +40,8 @@ from xoloapi.errors.base import AccessDeniedError
 from option import Ok
 from xoloapi.apikeys.domain.aggregates import APIKey
 from xoloapi.apikeys.domain.value_objects import APIKeyScope
-from xoloapi.ngac.dto import (
-    AssignDTO, AssociateDTO, CheckAccessDTO,
-    CreateNodeDTO, RemoveAssignmentDTO,
-)
 from xoloapi.ngac.enums import NodeType
-from xoloapi.ngac.service import NGACService
+from xoloapi.ngac.application.ngac_service import NGACService
 from tests.ngac.conftest import _DB_NAME, _MONGO_URI
 
 # ── Principals ─────────────────────────────────────────────────────────────
@@ -115,19 +110,21 @@ async def store(ngac_service: NGACService):
     svc = ngac_service
 
     async def node(name: str, ntype: NodeType) -> str:
-        r = await svc.create_node(ACCOUNT_ID, CreateNodeDTO(name=name, node_type=ntype), owner_id=ALICE_KEY)
+        r = await svc.create_node(ACCOUNT_ID, node_type=ntype, name=name, owner_id=ALICE_KEY)
         assert r.is_ok, r.unwrap_err()
         return r.unwrap()
 
     async def link(from_id: str, to_id: str) -> None:
-        r = await svc.assign(ACCOUNT_ID, AssignDTO(from_id=from_id, to_id=to_id), owner_id=ALICE_KEY)
+        r = await svc.assign(ACCOUNT_ID, from_id=from_id, to_id=to_id, owner_id=ALICE_KEY)
         assert r.is_ok, r.unwrap_err()
 
     async def associate(ua_id: str, oa_id: str, ops: list[str]) -> str:
         r = await svc.associate(
             ACCOUNT_ID,
-            AssociateDTO(user_attribute_id=ua_id, object_attribute_id=oa_id, operations=ops),
-            owner_id=ALICE_KEY,
+            user_attribute_id   = ua_id,
+            object_attribute_id = oa_id,
+            operations          = ops,
+            owner_id            = ALICE_KEY,
         )
         assert r.is_ok, r.unwrap_err()
         return r.unwrap()
@@ -275,85 +272,76 @@ async def admin_client(ngac_service: NGACService, ngac_http_accounts_service):
 
 @pytest.mark.asyncio
 async def test_worker_can_sell_product(ngac_service: NGACService, store: dict):
-    result = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["bob_node"], object_id=store["product"], operation="sell")
-    )
-    assert result.unwrap().allowed is True
+    allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["bob_node"], object_id=store["product"], operation="sell"
+    )).unwrap()
+    assert allowed is True
 
 
 @pytest.mark.asyncio
 async def test_worker_can_sell_during_shift(ngac_service: NGACService, store: dict):
-    result = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["bob_node"], object_id=store["shift"], operation="sell")
-    )
-    assert result.unwrap().allowed is True
+    allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["bob_node"], object_id=store["shift"], operation="sell"
+    )).unwrap()
+    assert allowed is True
 
 
 @pytest.mark.asyncio
 async def test_all_workers_can_sell(ngac_service: NGACService, store: dict):
     """Both Bob and Carol inherit Worker → can sell."""
     for worker_node in [store["bob_node"], store["carol_node"]]:
-        result = await ngac_service.check_access(
-            ACCOUNT_ID,
-            CheckAccessDTO(user_id=worker_node, object_id=store["product"], operation="sell")
-        )
-        assert result.unwrap().allowed is True, f"{worker_node} should be able to sell"
+        allowed, _ = (await ngac_service.check_access(
+            ACCOUNT_ID, user_id=worker_node, object_id=store["product"], operation="sell"
+        )).unwrap()
+        assert allowed is True, f"{worker_node} should be able to sell"
 
 
 @pytest.mark.asyncio
 async def test_worker_cannot_fire_worker(ngac_service: NGACService, store: dict):
-    result = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["bob_node"], object_id=store["product"], operation="fire_worker")
-    )
-    assert result.unwrap().allowed is False
+    allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["bob_node"], object_id=store["product"], operation="fire_worker"
+    )).unwrap()
+    assert allowed is False
 
 
 @pytest.mark.asyncio
 async def test_worker_cannot_end_shift(ngac_service: NGACService, store: dict):
-    result = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["bob_node"], object_id=store["shift"], operation="end_shift")
-    )
-    assert result.unwrap().allowed is False
+    allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["bob_node"], object_id=store["shift"], operation="end_shift"
+    )).unwrap()
+    assert allowed is False
 
 
 @pytest.mark.asyncio
 async def test_owner_can_sell_product(ngac_service: NGACService, store: dict):
-    result = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["alice_node"], object_id=store["product"], operation="sell")
-    )
-    assert result.unwrap().allowed is True
+    allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["alice_node"], object_id=store["product"], operation="sell"
+    )).unwrap()
+    assert allowed is True
 
 
 @pytest.mark.asyncio
 async def test_owner_can_fire_worker_on_product(ngac_service: NGACService, store: dict):
-    result = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["alice_node"], object_id=store["product"], operation="fire_worker")
-    )
-    assert result.unwrap().allowed is True
+    allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["alice_node"], object_id=store["product"], operation="fire_worker"
+    )).unwrap()
+    assert allowed is True
 
 
 @pytest.mark.asyncio
 async def test_owner_can_end_shift(ngac_service: NGACService, store: dict):
-    result = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["alice_node"], object_id=store["shift"], operation="end_shift")
-    )
-    assert result.unwrap().allowed is True
+    allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["alice_node"], object_id=store["shift"], operation="end_shift"
+    )).unwrap()
+    assert allowed is True
 
 
 @pytest.mark.asyncio
 async def test_owner_can_fire_worker_on_shift_resource(ngac_service: NGACService, store: dict):
-    result = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["alice_node"], object_id=store["shift"], operation="fire_worker")
-    )
-    assert result.unwrap().allowed is True
+    allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["alice_node"], object_id=store["shift"], operation="fire_worker"
+    )).unwrap()
+    assert allowed is True
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -362,39 +350,36 @@ async def test_owner_can_fire_worker_on_shift_resource(ngac_service: NGACService
 
 @pytest.mark.asyncio
 async def test_fired_worker_loses_sell_access(ngac_service: NGACService, store: dict):
-    before = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["bob_node"], object_id=store["product"], operation="sell")
-    )
-    assert before.unwrap().allowed is True
+    before_allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["bob_node"], object_id=store["product"], operation="sell"
+    )).unwrap()
+    assert before_allowed is True
 
     # Owner fires Bob: remove bob-node → Worker assignment
     result = await ngac_service.remove_assignment(
         ACCOUNT_ID,
-        RemoveAssignmentDTO(from_id=store["bob_node"], to_id=store["ua_worker"]),
+        from_id=store["bob_node"], to_id=store["ua_worker"],
         requester_key=ALICE_KEY,
     )
     assert result.is_ok
 
-    after = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["bob_node"], object_id=store["product"], operation="sell")
-    )
-    assert after.unwrap().allowed is False
+    after_allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["bob_node"], object_id=store["product"], operation="sell"
+    )).unwrap()
+    assert after_allowed is False
 
 
 @pytest.mark.asyncio
 async def test_fired_worker_loses_shift_access(ngac_service: NGACService, store: dict):
     await ngac_service.remove_assignment(
         ACCOUNT_ID,
-        RemoveAssignmentDTO(from_id=store["bob_node"], to_id=store["ua_worker"]),
+        from_id=store["bob_node"], to_id=store["ua_worker"],
         requester_key=ALICE_KEY,
     )
-    result = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["bob_node"], object_id=store["shift"], operation="sell")
-    )
-    assert result.unwrap().allowed is False
+    allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["bob_node"], object_id=store["shift"], operation="sell"
+    )).unwrap()
+    assert allowed is False
 
 
 @pytest.mark.asyncio
@@ -402,14 +387,13 @@ async def test_carol_unaffected_when_bob_is_fired(ngac_service: NGACService, sto
     """Firing Bob should not revoke Carol's access — she is in Worker independently."""
     await ngac_service.remove_assignment(
         ACCOUNT_ID,
-        RemoveAssignmentDTO(from_id=store["bob_node"], to_id=store["ua_worker"]),
+        from_id=store["bob_node"], to_id=store["ua_worker"],
         requester_key=ALICE_KEY,
     )
-    result = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["carol_node"], object_id=store["product"], operation="sell")
-    )
-    assert result.unwrap().allowed is True
+    allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["carol_node"], object_id=store["product"], operation="sell"
+    )).unwrap()
+    assert allowed is True
 
 
 @pytest.mark.asyncio
@@ -417,18 +401,17 @@ async def test_worker_cannot_fire_another_worker(ngac_service: NGACService, stor
     """Bob cannot remove Carol's assignment — he does not own the Worker UA."""
     result = await ngac_service.remove_assignment(
         ACCOUNT_ID,
-        RemoveAssignmentDTO(from_id=store["carol_node"], to_id=store["ua_worker"]),
+        from_id=store["carol_node"], to_id=store["ua_worker"],
         requester_key=BOB_KEY,
     )
     assert result.is_err
     assert isinstance(result.unwrap_err(), AccessDeniedError)
 
     # Carol's access is intact
-    check = await ngac_service.check_access(
-        ACCOUNT_ID,
-        CheckAccessDTO(user_id=store["carol_node"], object_id=store["product"], operation="sell")
-    )
-    assert check.unwrap().allowed is True
+    allowed, _ = (await ngac_service.check_access(
+        ACCOUNT_ID, user_id=store["carol_node"], object_id=store["product"], operation="sell"
+    )).unwrap()
+    assert allowed is True
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -467,7 +450,7 @@ async def test_worker_cannot_remove_owner_assignment(ngac_service: NGACService, 
     """Bob cannot remove alice-node → StoreOwner (Alice owns that assignment)."""
     result = await ngac_service.remove_assignment(
         ACCOUNT_ID,
-        RemoveAssignmentDTO(from_id=store["alice_node"], to_id=store["ua_owner"]),
+        from_id=store["alice_node"], to_id=store["ua_owner"],
         requester_key=BOB_KEY,
     )
     assert result.is_err
@@ -491,13 +474,13 @@ async def test_worker_cannot_assign_rogue_user_to_owner_ua(ngac_service: NGACSer
     """Bob creates a node he owns, but cannot assign it into StoreOwner UA (Alice's)."""
     rogue_r = await ngac_service.create_node(
         ACCOUNT_ID,
-        CreateNodeDTO(name="rogue", node_type=NodeType.USER),
+        node_type=NodeType.USER, name="rogue",
         owner_id=BOB_KEY,
     )
     assert rogue_r.is_ok
     result = await ngac_service.assign(
         ACCOUNT_ID,
-        AssignDTO(from_id=rogue_r.unwrap(), to_id=store["ua_owner"]),
+        from_id=rogue_r.unwrap(), to_id=store["ua_owner"],
         owner_id=BOB_KEY,
     )
     assert result.is_err
@@ -520,7 +503,7 @@ async def test_superadmin_can_delete_any_node(ngac_service: NGACService, store: 
 async def test_superadmin_can_remove_any_assignment(ngac_service: NGACService, store: dict):
     result = await ngac_service.remove_assignment(
         ACCOUNT_ID,
-        RemoveAssignmentDTO(from_id=store["alice_node"], to_id=store["ua_owner"]),
+        from_id=store["alice_node"], to_id=store["ua_owner"],
         requester_key=ADMIN_KEY,
         is_admin=True,
     )

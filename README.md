@@ -33,7 +33,7 @@ Xolo brings together four complementary access-control styles:
 | --- | --- | --- |
 | **ACL** | resource ownership and sharing | MongoDB |
 | **ABAC Event** | request-time rules with subject/resource/location/time/action | MongoDB |
-| **ABAC community policies** | graph/community-based policy evaluation | in memory |
+| **RBAC** | role-based access via security groups and permission sets | MongoDB |
 | **NGAC** | graph traversal with policy classes and AND semantics | MongoDB |
 
 Supporting modules like **accounts**, **users**, **scopes**, **licenses**, **API Keys**, and the **admin UI** make those authorization models usable in real applications.
@@ -60,14 +60,8 @@ All operations are isolated to the account; account owners cannot access other a
 
 ## Architecture at a glance
 
-Xolo uses two architectural styles:
-
-1. **Classic layered modules** for users, licenses, scopes, and older ACL flows:
-   `controller -> service -> repository -> db`
-2. **Vertical slices** for newer authorization systems:
-   - `xoloapi/abac/`
-   - `xoloapi/ngac/`
-   - `xoloapi/policies/`
+Xolo uses a uniform **DDD per-module** structure across all subsystems:
+`controller.py → application/<svc>.py → infrastructure/ → db/`
 
 Cross-cutting conventions:
 
@@ -85,9 +79,9 @@ xolo-api/
 │   ├── config/                # Environment-driven settings
 │   ├── db/                    # MongoDB and Redis connections
 │   ├── middleware/            # JWT auth and admin guards
-│   ├── controllers/           # Classic IAM controllers
-│   ├── services/              # Classic IAM service layer
-│   ├── repositories/          # Classic IAM persistence layer
+│   ├── controllers/           # Router aggregation (re-exports per-module controllers)
+│   ├── services/              # Legacy service layer (superseded by per-module application/)
+│   ├── repositories/          # Legacy repository layer (superseded by per-module infrastructure/)
 │   ├── accounts/              # Top-level account lifecycle and ownership
 │   ├── users/                 # User flows, password reset, mail providers
 │   ├── scopes/                # Scope management and assignments
@@ -95,9 +89,10 @@ xolo-api/
 │   ├── apikeys/               # API key creation and management
 │   ├── admin_ui/              # Minimal internal super-admin UI
 │   ├── acl/                   # ACL subsystem
+│   ├── groups/                # SecurityGroup shared bounded context (used by ACL and RBAC)
 │   ├── abac/                  # Persisted ABAC Event subsystem
-│   ├── ngac/                  # NGAC graph subsystem
-│   └── policies/              # In-memory ABAC/community subsystem
+│   ├── rbac/                  # RBAC subsystem (roles as security groups with permission sets)
+│   └── ngac/                  # NGAC graph subsystem
 ├── tests/                     # Integration and module tests
 ├── deploy/env/                # Deployment env files
 ├── assets/                    # Static project assets

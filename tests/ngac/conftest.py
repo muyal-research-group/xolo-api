@@ -19,8 +19,8 @@ from xoloapi.accounts.infrastructure.mongo_repository import MongoAccountsReposi
 from xoloapi.apikeys.domain.aggregates import APIKey
 from xoloapi.apikeys.domain.value_objects import APIKeyScope
 from xoloapi.db.constants import CollectionNames
-from xoloapi.ngac.repository import NGACRepository
-from xoloapi.ngac.service import NGACService
+from xoloapi.ngac.infrastructure.mongo_ngac_repository import MongoNGACRepository
+from xoloapi.ngac.application.ngac_service import NGACService
 
 _MONGO_URI = "mongodb://localhost:27018"
 _DB_NAME   = "xolo_test_ngac"
@@ -58,7 +58,12 @@ async def ngac_repo():
         await db.drop_collection(col)
     await db.drop_collection(CollectionNames.ACCOUNTS_COLLECTION_NAME)
     
-    yield NGACRepository(db=db)
+    yield MongoNGACRepository(
+        db=db,
+        nodes_col=CollectionNames.NGAC_NODES_COLLECTION_NAME,
+        assignments_col=CollectionNames.NGAC_ASSIGNMENTS_COLLECTION_NAME,
+        associations_col=CollectionNames.NGAC_ASSOCIATIONS_COLLECTION_NAME,
+    )
     for col in _COLS:
         await db.drop_collection(col)
     await db.drop_collection(CollectionNames.ACCOUNTS_COLLECTION_NAME)
@@ -91,7 +96,6 @@ async def unauthenticated_ngac_client(ngac_service, ngac_accounts_service):
     import xoloapi.middleware as MX
     from xoloapi.middleware.apikey import _get_apikey_service
 
-    # app.dependency_overrides[MX.get_current_user] =lambda: None
     app.dependency_overrides[get_ngac_service]    = lambda: ngac_service
     app.dependency_overrides[get_accounts_service] = lambda: ngac_accounts_service
     app.dependency_overrides[_get_apikey_service] = lambda: _FakeAPIKeyService()

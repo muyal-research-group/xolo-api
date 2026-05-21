@@ -21,6 +21,40 @@ ACL is the ownership-and-sharing model.
 - permissions can be granted to users or groups
 - effective access is the union of direct and group permissions
 
+### Groups
+
+Groups are managed via the shared `xoloapi/groups/` bounded context (also used by RBAC). A group has a single owner and any number of members. When checking access, the caller's direct permissions plus those of every group they own or belong to are unioned together.
+
+| Endpoint | Description |
+| --- | --- |
+| `POST /acl/groups` | Create a group (caller becomes owner and first member) |
+| `DELETE /acl/groups/{group_id}` | Delete a group (owner only) |
+| `POST /acl/groups/{group_id}/members` | Add members |
+| `DELETE /acl/groups/{group_id}/members` | Remove members |
+| `GET /acl/groups/{group_id}/members/{user_id}` | Check membership |
+
+### Permission check
+
+`POST /acl/check` evaluates whether a principal has a set of permissions on a resource.
+
+```json
+{
+  "resource_id": "my-resource",
+  "permissions": ["read", "write"],
+  "principal_id": "grp-my-group-abc123",
+  "principal_type": "GROUP"
+}
+```
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `resource_id` | yes | The resource to check |
+| `permissions` | yes | List of permission strings (`read`, `write`, `delete`, `sys:manage`) |
+| `principal_id` | no | ID of the user or group to check. Defaults to the authenticated caller |
+| `principal_type` | no | `USER` or `GROUP`. Informational — the check resolves principals by ID |
+
+When `principal_id` is omitted the check uses the authenticated user and expands all groups that user owns or belongs to. When a group ID is supplied directly the check resolves the group's own grants.
+
 ## ABAC Event
 
 **Base path:** `/api/v4/abac`

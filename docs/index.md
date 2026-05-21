@@ -1,4 +1,15 @@
-# Xolo API
+<!-- # Xolo API -->
+<p align="center">
+  <img src="./assets/logo.png" alt="Xolo" width="220" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/muyal-research-group/xolo-api/actions/workflows/ci.yml"><img src="https://github.com/muyal-research-group/xolo/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://codecov.io/gh/muyal-research-group/xolo"><img src="https://codecov.io/gh/muyal-research-group/xolo-api/branch/master/graph/badge.svg" alt="codecov"></a>
+  <a href=""><img src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmuyal-research-group%2Fxolo-api%2Fmaster%2Fpyproject.toml&query=%24.tool.poetry.version&label=Version&logo=pypi&color=0A7ABC" alt="TestPyPI"></a>
+  <a href="https://github.com/muyal-research-group/xolo-api?tab=MIT-1-ov-file"><img src="https://img.shields.io/badge/license-MIT-0A7ABC" alt="License"></a>
+  <!-- <a href="https://github.com/muyal-research-group/xolo-api?tab=MIT-1-ov-file"><img src="https://img.shields.io/badge/license-Fair%20Source-0A7ABC" alt="License"></a> -->
+</p>
 
 Xolo is a FastAPI-based **Identity and Access Management** platform that combines several authorization models under one API. Instead of forcing every system into one policy style, Xolo lets you mix **ACL**, **ABAC Event**, **ABAC community policies**, and **NGAC** depending on the domain problem.
 
