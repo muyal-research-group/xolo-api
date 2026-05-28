@@ -12,11 +12,11 @@ from xoloapi.log.format import build_log_payload
 client = None
 
 log = Log(
-    name=__name__,
-    console_handler_filter=lambda x: True,
-    interval=Cfg.XOLO_LOG_INTERVAL,
-    when=Cfg.XOLO_LOG_WHEN,
-    path=Cfg.XOLO_LOG_PATH,
+    name                   = __name__,
+    console_handler_filter = lambda x: Cfg.XOLO_LOG_CONSOLE_FILTER,
+    interval               = Cfg.XOLO_LOG_INTERVAL,
+    when                   = Cfg.XOLO_LOG_WHEN,
+    path                   = Cfg.XOLO_LOG_PATH,
 )
 
 # Get the MongoDB client and database instance

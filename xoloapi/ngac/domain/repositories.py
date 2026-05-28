@@ -21,6 +21,9 @@ class INGACRepository(ABC):
     @abstractmethod
     async def delete_node(self, account_id: str, node_id: str) -> Result[bool, XoloException]: ...
 
+    @abstractmethod
+    async def delete_nodes_by_owner(self, account_id: str, owner_id: str) -> Result[int, XoloException]: ...
+
     # ── Assignments ───────────────────────────────────────────────────────────
 
     @abstractmethod

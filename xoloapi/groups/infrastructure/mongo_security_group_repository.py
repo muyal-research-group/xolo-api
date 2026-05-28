@@ -162,3 +162,25 @@ class MongoSecurityGroupRepository(ISecurityGroupRepository):
         except Exception as e:
             log.error(build_log_payload("groups.security_group.is_member.error", error=e, group_id=group_id, user_id=user_id))
             return Err(DatabaseError("Failed to check group membership", cause=e))
+
+    async def delete_all_for_user(self, account_id: str, user_id: str) -> Result[int, XoloException]:
+        try:
+            owned_ids: list[str] = []
+            async for doc in self.groups.find(
+                {"account_id": account_id, "owner_id": user_id}, {"group_id": 1, "_id": 0}
+            ):
+                owned_ids.append(doc["group_id"])
+
+            deleted = 0
+            if owned_ids:
+                r = await self.members.delete_many({"account_id": account_id, "group_id": {"$in": owned_ids}})
+                deleted += r.deleted_count
+                r = await self.groups.delete_many({"account_id": account_id, "owner_id": user_id})
+                deleted += r.deleted_count
+
+            r = await self.members.delete_many({"account_id": account_id, "user_id": user_id})
+            deleted += r.deleted_count
+            return Ok(deleted)
+        except Exception as e:
+            log.error(build_log_payload("groups.security_group.delete_all_for_user.error", error=e, user_id=user_id))
+            return Err(DatabaseError("Failed to delete groups and memberships for user", cause=e))

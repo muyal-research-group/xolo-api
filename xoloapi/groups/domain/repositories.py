@@ -61,3 +61,8 @@ class ISecurityGroupRepository(ABC):
     async def is_member(
         self, account_id: str, group_id: str, user_id: str
     ) -> Result[bool, XoloException]: ...
+
+    @abstractmethod
+    async def delete_all_for_user(
+        self, account_id: str, user_id: str
+    ) -> Result[int, XoloException]: ...
