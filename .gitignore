@@ -19,3 +19,4 @@ site/
 .cach
 .pytest_cache/
 ./log/*
+.*prod

@@ -5,8 +5,11 @@ from xoloapi.ngac.infrastructure.mongo_ngac_repository import MongoNGACRepositor
 from tests.ngac.conftest import ACCOUNT_ID
 
 
-def _node(node_id: str, node_type: NodeType) -> NGACNode:
-    return NGACNode(account_id=ACCOUNT_ID, node_id=node_id, node_type=node_type, name=node_id)
+def _node(node_id: str, node_type: NodeType, owner_id: str | None = None) -> NGACNode:
+    kwargs = dict(account_id=ACCOUNT_ID, node_id=node_id, node_type=node_type, name=node_id)
+    if owner_id is not None:
+        kwargs["owner_id"] = owner_id
+    return NGACNode(**kwargs)
 
 
 def _assignment(from_id: str, to_id: str, idx: int = 0) -> NGACAssignment:
@@ -243,3 +246,67 @@ async def test_load_graph_data_returns_all_collections(ngac_repo: MongoNGACRepos
     assert len(nodes)        == 5
     assert len(assignments)  == 4
     assert len(associations) == 1
+
+
+# ── delete_nodes_by_owner ─────────────────────────────────────────────────
+
+OWNER_A = "owner-alice"
+OWNER_B = "owner-bob"
+
+
+@pytest.mark.asyncio
+async def test_delete_nodes_by_owner_removes_owned_nodes(ngac_repo: MongoNGACRepository):
+    await ngac_repo.create_node(_node("n-a1", NodeType.USER_ATTRIBUTE, owner_id=OWNER_A))
+    await ngac_repo.create_node(_node("n-a2", NodeType.OBJECT_ATTRIBUTE, owner_id=OWNER_A))
+    await ngac_repo.create_node(_node("n-b1", NodeType.POLICY_CLASS, owner_id=OWNER_B))
+
+    result = await ngac_repo.delete_nodes_by_owner(ACCOUNT_ID, OWNER_A)
+
+    assert result.is_ok
+    assert result.unwrap() == 2
+    remaining = (await ngac_repo.list_nodes(ACCOUNT_ID)).unwrap()
+    assert [n.node_id for n in remaining] == ["n-b1"]
+
+
+@pytest.mark.asyncio
+async def test_delete_nodes_by_owner_cascades_assignments(ngac_repo: MongoNGACRepository):
+    await ngac_repo.create_node(_node("n-ua", NodeType.USER_ATTRIBUTE, owner_id=OWNER_A))
+    await ngac_repo.create_node(_node("n-pc", NodeType.POLICY_CLASS, owner_id=OWNER_A))
+    await ngac_repo.create_assignment(_assignment("n-ua", "n-pc"))
+
+    await ngac_repo.delete_nodes_by_owner(ACCOUNT_ID, OWNER_A)
+
+    assignments = (await ngac_repo.list_assignments(ACCOUNT_ID)).unwrap()
+    assert assignments == []
+
+
+@pytest.mark.asyncio
+async def test_delete_nodes_by_owner_cascades_associations(ngac_repo: MongoNGACRepository):
+    await ngac_repo.create_node(_node("n-ua", NodeType.USER_ATTRIBUTE, owner_id=OWNER_A))
+    await ngac_repo.create_node(_node("n-oa", NodeType.OBJECT_ATTRIBUTE, owner_id=OWNER_A))
+    await ngac_repo.create_association(_association("n-ua", "n-oa"))
+
+    await ngac_repo.delete_nodes_by_owner(ACCOUNT_ID, OWNER_A)
+
+    associations = (await ngac_repo.list_associations(ACCOUNT_ID)).unwrap()
+    assert associations == []
+
+
+@pytest.mark.asyncio
+async def test_delete_nodes_by_owner_does_not_affect_other_owners(ngac_repo: MongoNGACRepository):
+    await ngac_repo.create_node(_node("n-b1", NodeType.USER_ATTRIBUTE, owner_id=OWNER_B))
+    await ngac_repo.create_node(_node("n-b2", NodeType.OBJECT_ATTRIBUTE, owner_id=OWNER_B))
+
+    result = await ngac_repo.delete_nodes_by_owner(ACCOUNT_ID, OWNER_A)
+
+    assert result.is_ok
+    assert result.unwrap() == 0
+    remaining = (await ngac_repo.list_nodes(ACCOUNT_ID)).unwrap()
+    assert len(remaining) == 2
+
+
+@pytest.mark.asyncio
+async def test_delete_nodes_by_owner_returns_zero_when_no_owned_nodes(ngac_repo: MongoNGACRepository):
+    result = await ngac_repo.delete_nodes_by_owner(ACCOUNT_ID, OWNER_A)
+    assert result.is_ok
+    assert result.unwrap() == 0
