@@ -201,7 +201,7 @@ async def list_users(
 async def delete_user(
     account_id: str,
     username: str,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_api_key("users")),
     users_service: UsersService = Depends(get_users_service),
 ):
     t1 = T.time()

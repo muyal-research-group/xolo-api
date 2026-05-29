@@ -133,3 +133,14 @@ class MongoResourcePolicyRepository(IResourcePolicyRepository):
         except Exception as e:
             log.error(build_log_payload("acl.resource_policy.delete.error", error=e, resource_id=resource_id))
             return Err(DatabaseError(f"Failed to delete resource policy '{resource_id}'", cause=e))
+
+    async def delete_all_by_user(self, account_id: str, user_id: str) -> Result[int, XoloException]:
+        try:
+            result = await self.col.delete_many({
+                "account_id": account_id,
+                "grants": {"$elemMatch": {"principal_id": user_id}},
+            })
+            return Ok(result.deleted_count)
+        except Exception as e:
+            log.error(build_log_payload("acl.resource_policy.delete_all_by_user.error", error=e, user_id=user_id))
+            return Err(DatabaseError("Failed to delete resource policies for user", cause=e))

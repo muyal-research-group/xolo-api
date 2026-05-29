@@ -81,6 +81,31 @@ class MongoNGACRepository(INGACRepository):
             log.error(build_log_payload("ngac.repository.delete_node.error", error=e, node_id=node_id))
             return Err(DatabaseError(cause=e))
 
+    async def delete_nodes_by_owner(self, account_id: str, owner_id: str) -> Result[int, XoloException]:
+        try:
+            cursor = self._nodes.find(
+                {"account_id": account_id, "owner_id": owner_id}, {"node_id": 1, "_id": 0}
+            )
+            node_ids: list[str] = [doc["node_id"] async for doc in cursor]
+            if not node_ids:
+                return Ok(0)
+            await self._nodes.delete_many({"account_id": account_id, "node_id": {"$in": node_ids}})
+            await self._assignments.delete_many({
+                "account_id": account_id,
+                "$or": [{"from_id": {"$in": node_ids}}, {"to_id": {"$in": node_ids}}],
+            })
+            await self._associations.delete_many({
+                "account_id": account_id,
+                "$or": [
+                    {"user_attribute_id": {"$in": node_ids}},
+                    {"object_attribute_id": {"$in": node_ids}},
+                ],
+            })
+            return Ok(len(node_ids))
+        except Exception as e:
+            log.error(build_log_payload("ngac.repository.delete_nodes_by_owner.error", error=e, owner_id=owner_id))
+            return Err(DatabaseError(cause=e))
+
     # ── Assignments ───────────────────────────────────────────────────────────
 
     async def create_assignment(self, assignment: NGACAssignment) -> Result[str, XoloException]:

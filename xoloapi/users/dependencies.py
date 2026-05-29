@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException
 
 import xoloapi.config as Cfg
-from xoloapi.db import get_collection
+from xoloapi.db import get_collection, get_database
 from xoloapi.db.constants import CollectionNames
 from xoloapi.licenses.application.licenses_service import LicensesService
 from xoloapi.licenses.infrastructure.mongo_repository import MongoLicensesRepository
@@ -41,8 +41,13 @@ def get_users_mailer():
 
 
 def get_users_service(cache=Depends(get_cache_redis), users_mailer=Depends(get_users_mailer)) -> UsersService:
+    from xoloapi.acl.infrastructure.mongo_resource_policy_repository import MongoResourcePolicyRepository
+    from xoloapi.groups.infrastructure.mongo_security_group_repository import MongoSecurityGroupRepository
+    from xoloapi.ngac.infrastructure.mongo_ngac_repository import MongoNGACRepository
+
     users_collection = get_collection(CollectionNames.USERS_COLLECTION_NAME)
     users_repository = MongoUsersRepository(collection=users_collection, cache_redis=cache)
+    db = get_database()
     return UsersService(
         repository=users_repository,
         scopes_repository=MongoScopesRepository(
@@ -60,4 +65,19 @@ def get_users_service(cache=Depends(get_cache_redis), users_mailer=Depends(get_u
             collection=get_collection(CollectionNames.PASSWORD_RESET_TOKENS_COLLECTION_NAME),
         ),
         users_mailer=users_mailer,
+        acl_repository=MongoResourcePolicyRepository(
+            db=db,
+            collection_name=CollectionNames.ACL_RESOURCE_POLICIES_COLLECTION_NAME,
+        ),
+        groups_repository=MongoSecurityGroupRepository(
+            db=db,
+            groups_col=CollectionNames.ACL_GROUPS_COLLECTION_NAME,
+            members_col=CollectionNames.ACL_GROUP_MEMBERS_COLLECTION_NAME,
+        ),
+        ngac_repository=MongoNGACRepository(
+            db=db,
+            nodes_col=CollectionNames.NGAC_NODES_COLLECTION_NAME,
+            assignments_col=CollectionNames.NGAC_ASSIGNMENTS_COLLECTION_NAME,
+            associations_col=CollectionNames.NGAC_ASSOCIATIONS_COLLECTION_NAME,
+        ),
     )

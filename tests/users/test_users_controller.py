@@ -1,7 +1,11 @@
 import pytest
 
 import xoloapi.users.dto as UDTO
-from tests.users.conftest import API_KEY_ACCOUNT_ID
+from tests.support import app_client
+from tests.users.conftest import API_KEY_ACCOUNT_ID, COLLECTIONS, DB_NAME
+from xoloapi.apikeys.domain.value_objects import APIKeyScope
+from xoloapi.server import app
+from xoloapi.users.dependencies import get_users_service
 
 ACCOUNT_ID = API_KEY_ACCOUNT_ID
 OTHER_ACCOUNT_ID = "acc-other"
@@ -281,3 +285,29 @@ async def test_users_controller_auth_requires_matching_account_api_key(users_cli
     )
     assert response.status_code == 403
     assert "API key does not belong to the requested account" in str(response.json()["detail"])
+
+
+@pytest.mark.asyncio
+async def test_delete_user_rejects_wrong_account_api_key(users_client):
+    delete_res = await users_client.request(
+        "DELETE", f"/api/v4/accounts/{OTHER_ACCOUNT_ID}/users/alice"
+    )
+    assert delete_res.status_code == 403
+    assert "API key does not belong to the requested account" in str(delete_res.json()["detail"])
+
+
+@pytest.mark.asyncio
+async def test_delete_user_rejects_missing_api_key(users_service):
+    app.dependency_overrides[get_users_service] = lambda: users_service
+    async with app_client(
+        DB_NAME,
+        COLLECTIONS,
+        api_key_scopes=None,
+        account_ids=[API_KEY_ACCOUNT_ID],
+        admin_token="admin-token",
+    ) as client:
+        delete_res = await client.request(
+            "DELETE", f"/api/v4/accounts/{API_KEY_ACCOUNT_ID}/users/alice"
+        )
+        assert delete_res.status_code not in (200, 204)
+    app.dependency_overrides.pop(get_users_service, None)

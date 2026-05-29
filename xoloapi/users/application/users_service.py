@@ -39,12 +39,18 @@ class UsersService:
         licenses_service: LicensesService,
         password_reset_repository: IPasswordResetRepository,
         users_mailer: IUsersMailer,
+        acl_repository: Any = None,
+        groups_repository: Any = None,
+        ngac_repository: Any = None,
     ):
         self.repository = repository
         self.scopes_repository = scopes_repository
         self.licenses_service = licenses_service
         self.password_reset_repository = password_reset_repository
         self.users_mailer = users_mailer
+        self.acl_repository = acl_repository
+        self.groups_repository = groups_repository
+        self.ngac_repository = ngac_repository
 
     @staticmethod
     def _hash_reset_token(token: str) -> str:
@@ -307,6 +313,24 @@ class UsersService:
             if revoke_result.is_err:
                 log.error(build_log_payload("users.delete.error", started_at=start_time, error=revoke_result.unwrap_err(), username=normalized_username, user_id=user.key))
                 return Err(revoke_result.unwrap_err())
+
+            if self.acl_repository is not None:
+                acl_result = await self.acl_repository.delete_all_by_user(account_id=account_id, user_id=user.key)
+                if acl_result.is_err:
+                    log.error(build_log_payload("users.delete.error", started_at=start_time, error=acl_result.unwrap_err(), username=normalized_username, user_id=user.key))
+                    return Err(acl_result.unwrap_err())
+
+            if self.groups_repository is not None:
+                groups_result = await self.groups_repository.delete_all_for_user(account_id=account_id, user_id=user.key)
+                if groups_result.is_err:
+                    log.error(build_log_payload("users.delete.error", started_at=start_time, error=groups_result.unwrap_err(), username=normalized_username, user_id=user.key))
+                    return Err(groups_result.unwrap_err())
+
+            if self.ngac_repository is not None:
+                ngac_result = await self.ngac_repository.delete_nodes_by_owner(account_id=account_id, owner_id=user.key)
+                if ngac_result.is_err:
+                    log.error(build_log_payload("users.delete.error", started_at=start_time, error=ngac_result.unwrap_err(), username=normalized_username, user_id=user.key))
+                    return Err(ngac_result.unwrap_err())
 
             delete_result = await self.repository.delete_by_id(user_id=user.key, account_id=account_id)
             if delete_result.is_err:

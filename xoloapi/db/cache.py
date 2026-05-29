@@ -4,7 +4,7 @@ from xoloapi.log import Log
 
 import xoloapi.config as Cfg
 from xoloapi.log.format import build_log_payload
-
+import time as T
 log = Log(
     name=__name__,
     console_handler_filter=lambda x: True,
@@ -25,7 +25,7 @@ def get_redis_client() -> Optional[aioredis.Redis]:
 async def connect_to_redis():
     global redis_pool
     if redis_pool is None:
-        start_time = __import__("time").time()
+        start_time = T.time()
         redis_pool = aioredis.ConnectionPool.from_url(
             Cfg.XOLO_CACHE_REDIS_URI,
             decode_responses=True
@@ -57,7 +57,7 @@ async def connect_to_redis():
 async def close_redis_connection():
     global redis_pool
     if redis_pool:
-        start_time = __import__("time").time()
+        start_time = T.time()
         await redis_pool.disconnect()
         redis_pool = None
         log.info(build_log_payload("runtime.redis.disconnect", started_at=start_time))

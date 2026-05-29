@@ -43,3 +43,8 @@ class IResourcePolicyRepository(ABC):
     async def delete(
         self, account_id: str, resource_id: str
     ) -> Result[bool, XoloException]: ...
+
+    @abstractmethod
+    async def delete_all_by_user(
+        self, account_id: str, user_id: str
+    ) -> Result[int, XoloException]: ...

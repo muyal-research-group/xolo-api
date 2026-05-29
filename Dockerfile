@@ -24,5 +24,5 @@ COPY xoloapi /app/xoloapi
 # EXPOSE 10000
 
 # Comando por defecto: iniciar el API
-# CMD ["uvicorn", "xoloapi.server:app", "--host", "0.0.0.0", "--port", "10000"]
+CMD ["uvicorn", "xoloapi.server:app", "--host", "0.0.0.0", "--port", "10000"]
 
