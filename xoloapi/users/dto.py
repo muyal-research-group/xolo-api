@@ -26,6 +26,11 @@ class PasswordRecoveryConfirmDTO(BaseModel):
 class DeleteUserDTO(BaseModel):
     username: str
 
+
+class RefreshTokenDTO(BaseModel):
+    expiration: str = "15min"
+
+
 __all__ = [
     "AuthDTO",
     "AuthenticatedDTO",
@@ -34,6 +39,7 @@ __all__ = [
     "EnableOrDisableUserDTO",
     "DeleteUserDTO",
     "LogoutDTO",
+    "RefreshTokenDTO",
     "SignUpDTO",
     "PasswordRecoveryRequestDTO",
     "PasswordRecoveryConfirmDTO",

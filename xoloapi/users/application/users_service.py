@@ -372,6 +372,85 @@ class UsersService:
             log.error(build_log_payload("users.logout.error", started_at=start_time, error=e, username=getattr(dto, "username", None)))
             return Err(EX.ServerError(raw_detail=str(e)))
 
+    async def refresh_token(self, account_id: str, username: str, expiration: str = "15min") -> Result[DTO.AuthenticatedDTO, EX.XError]:
+        try:
+            start_time = T.time()
+            _username = username.strip()
+
+            maybe_user = await self.repository.find_by_username(account_id=account_id, username=_username)
+            if maybe_user.is_none:
+                return Err(EX.NotFound(raw_detail="User not found"))
+            user = maybe_user.unwrap()
+
+            token_result = await self.repository.get_access_token(account_id=account_id, username=_username)
+            if token_result.is_err:
+                return Err(token_result.unwrap_err())
+            token_maybe = token_result.unwrap()
+            if token_maybe.is_none:
+                error = EX.Unauthorized(raw_detail="No active session found")
+                log.warning(build_log_payload("users.refresh_token.no_session", started_at=start_time, username=_username))
+                return Err(error)
+
+            old_token, old_secret = token_maybe.unwrap()
+            payload_result = Security.decode_access_token(token=old_token, secret_key=old_secret)
+            if payload_result.is_err:
+                error = EX.Unauthorized(raw_detail="Existing session is invalid or expired")
+                log.warning(build_log_payload("users.refresh_token.invalid_session", started_at=start_time, username=_username))
+                return Err(error)
+            scope = payload_result.unwrap().get("iss", "Xolo")
+
+            del_result = await self.repository.delete_access_token(account_id=account_id, username=_username)
+            if del_result.is_err:
+                log.error(build_log_payload("users.refresh_token.delete.error", started_at=start_time, error=del_result.unwrap_err(), username=_username))
+                return Err(del_result.unwrap_err())
+
+            temp_secret_key = uuid4().hex
+            iat = datetime.now(timezone.utc)
+            exp_in_seconds = HF.parse_timespan(expiration)
+            exp = iat + timedelta(seconds=exp_in_seconds)
+            access_token = Security.create_access_token(
+                SECRET_KEY=temp_secret_key,
+                ALGORITHM=Security.ALGORITHM,
+                data={
+                    "sub": user.key,
+                    "aid": account_id,
+                    "exp": exp.timestamp(),
+                    "iss": scope,
+                    "iat": iat.timestamp(),
+                    "uid2": user.username,
+                },
+                expires_delta=timedelta(seconds=exp_in_seconds),
+            )
+
+            store_result = await self.repository.set_access_token(
+                username=_username,
+                account_id=account_id,
+                access_token=access_token,
+                temp_secret_key=temp_secret_key,
+                exp=expiration,
+            )
+            if store_result.is_err:
+                log.error(build_log_payload("users.refresh_token.store.error", started_at=start_time, error=store_result.unwrap_err(), username=_username))
+                return Err(store_result.unwrap_err())
+
+            log.info(build_log_payload("users.refresh_token", started_at=start_time, username=_username, user_id=user.key))
+            return Ok(
+                DTO.AuthenticatedDTO(
+                    username=user.username,
+                    email=user.email,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    profile_photo=user.profile_photo,
+                    access_token=access_token,
+                    temporal_secret=temp_secret_key,
+                    metadata={},
+                    user_id=user.key,
+                )
+            )
+        except Exception as e:
+            log.error(build_log_payload("users.refresh_token.error", started_at=start_time, error=e, username=username))
+            return Err(EX.ServerError(raw_detail=str(e)))
+
     async def update_password(self, account_id: str, dto: DTO.UpdateUserPasswordDTO) -> Result[DTO.UpdateUserPasswordResponseDTO, EX.XError]:
         try:
             start_time = T.time()

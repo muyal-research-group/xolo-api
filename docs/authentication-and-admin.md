@@ -74,6 +74,21 @@ The UI is intentionally simple and is designed for trusted internal operations r
 
 Signup is account-scoped (`POST /api/v4/accounts/{account_id}/users/signup`) and requires an API key with the `users` scope. It creates the user and then triggers the welcome-email flow through the configured mail provider.
 
+### Token refresh
+
+A logged-in user can exchange their current token for a fresh one without re-entering credentials:
+
+```http
+POST /api/v4/accounts/{account_id}/users/refresh
+Authorization: Bearer <access_token>
+Temporal-Secret-Key: <temporal_secret>
+Content-Type: application/json
+
+{"expiration": "15min"}
+```
+
+The response contains a new `access_token` and `temporal_secret`. The old pair is immediately invalidated — subsequent calls to `/verify` with the old credentials will be rejected. The `expiration` field is optional and defaults to `15min`; it accepts human-friendly values such as `"1h"`, `"30min"`, `"2d"`.
+
 ### Password recovery
 
 Password reset requests generate a reset token and send an email through the configured provider.
