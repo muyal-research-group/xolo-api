@@ -297,6 +297,68 @@ async def test_delete_user_rejects_wrong_account_api_key(users_client):
 
 
 @pytest.mark.asyncio
+async def test_refresh_token_endpoint_returns_new_credentials(users_client):
+    await users_client.post(f"/api/v4/accounts/{ACCOUNT_ID}/scopes", json={"name": "ops"})
+    await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/signup",
+        json={
+            "username": "alice",
+            "first_name": "Alice",
+            "last_name": "Doe",
+            "email": "alice@example.com",
+            "password": "password123",
+            "profile_photo": "",
+            "scope": "ops",
+            "expiration": "15m",
+        },
+    )
+
+    auth_res = await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/auth",
+        json={"username": "alice", "password": "password123", "scope": "ops", "expiration": "15m", "renew_token": False},
+    )
+    assert auth_res.status_code == 200
+    old = auth_res.json()
+    headers = {
+        "Authorization": f"Bearer {old['access_token']}",
+        "Temporal-Secret-Key": old["temporal_secret"],
+    }
+
+    refresh_res = await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/refresh",
+        json={"expiration": "15m"},
+        headers=headers,
+    )
+    assert refresh_res.status_code == 200
+    new = refresh_res.json()
+
+    assert new["access_token"] != old["access_token"]
+    assert new["temporal_secret"] != old["temporal_secret"]
+    assert new["username"] == "alice"
+
+    verify_new = await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/verify",
+        json={"access_token": new["access_token"], "username": "alice", "secret": new["temporal_secret"]},
+    )
+    assert verify_new.status_code == 204
+
+    verify_old = await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/verify",
+        json={"access_token": old["access_token"], "username": "alice", "secret": old["temporal_secret"]},
+    )
+    assert verify_old.status_code != 204
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_endpoint_rejects_missing_bearer(users_client):
+    refresh_res = await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/refresh",
+        json={"expiration": "15m"},
+    )
+    assert refresh_res.status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_delete_user_rejects_missing_api_key(users_service):
     app.dependency_overrides[get_users_service] = lambda: users_service
     async with app_client(

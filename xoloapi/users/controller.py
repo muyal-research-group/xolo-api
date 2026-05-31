@@ -156,6 +156,27 @@ async def logout(
     raise error.to_http_exception()
 
 
+@router.post("/refresh")
+async def refresh_token(
+    account_id: str,
+    dto: DTO.RefreshTokenDTO,
+    me: DTO.UserDTO = Depends(MX.get_current_user),
+    users_service: UsersService = Depends(get_users_service),
+) -> DTO.AuthenticatedDTO:
+    t1 = T.time()
+    result = await users_service.refresh_token(
+        account_id=account_id,
+        username=me.username,
+        expiration=dto.expiration,
+    )
+    if result.is_ok:
+        log.info(build_log_payload("users.refresh_token", started_at=t1, username=me.username))
+        return result.unwrap()
+    error = result.unwrap_err()
+    log.error(build_log_payload("users.refresh_token.error", started_at=t1, error=error, username=me.username))
+    raise error.to_http_exception()
+
+
 @router.post("/auth")
 async def auth(
     account_id: str,

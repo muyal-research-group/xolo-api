@@ -309,6 +309,124 @@ async def test_users_service_block_user_invalidates_active_session(users_service
 
 
 @pytest.mark.asyncio
+async def test_refresh_token_returns_new_credentials(users_service):
+    await users_service.scopes_repository.create(ACCOUNT_ID, DTO.CreateScopeDTO(name="ops"))
+    await users_service.signup(
+        ACCOUNT_ID,
+        DTO.SignUpDTO(
+            username="alice",
+            first_name="Alice",
+            last_name="Doe",
+            email="alice@example.com",
+            password="password123",
+            profile_photo="",
+            scope="ops",
+            expiration="15m",
+        ),
+    )
+
+    auth = await users_service.auth(
+        ACCOUNT_ID,
+        DTO.AuthDTO(username="alice", password="password123", scope="ops", expiration="15m", renew_token=False),
+    )
+    assert auth.is_ok
+    old = auth.unwrap()
+
+    refreshed = await users_service.refresh_token(ACCOUNT_ID, "alice", "15m")
+    assert refreshed.is_ok
+    new = refreshed.unwrap()
+
+    assert new.access_token != old.access_token
+    assert new.temporal_secret != old.temporal_secret
+    assert new.username == "alice"
+    assert new.email == "alice@example.com"
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_new_credentials_are_valid(users_service):
+    await users_service.scopes_repository.create(ACCOUNT_ID, DTO.CreateScopeDTO(name="ops"))
+    await users_service.signup(
+        ACCOUNT_ID,
+        DTO.SignUpDTO(
+            username="alice",
+            first_name="Alice",
+            last_name="Doe",
+            email="alice@example.com",
+            password="password123",
+            profile_photo="",
+            scope="ops",
+            expiration="15m",
+        ),
+    )
+    await users_service.auth(
+        ACCOUNT_ID,
+        DTO.AuthDTO(username="alice", password="password123", scope="ops", expiration="15m", renew_token=False),
+    )
+
+    refreshed = await users_service.refresh_token(ACCOUNT_ID, "alice", "15m")
+    assert refreshed.is_ok
+    new = refreshed.unwrap()
+
+    verified = await users_service.verify(
+        ACCOUNT_ID,
+        DTO.VerifyDTO(access_token=new.access_token, username="alice", secret=new.temporal_secret),
+    )
+    assert verified.is_ok
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_old_credentials_rejected_by_verify(users_service):
+    await users_service.scopes_repository.create(ACCOUNT_ID, DTO.CreateScopeDTO(name="ops"))
+    await users_service.signup(
+        ACCOUNT_ID,
+        DTO.SignUpDTO(
+            username="alice",
+            first_name="Alice",
+            last_name="Doe",
+            email="alice@example.com",
+            password="password123",
+            profile_photo="",
+            scope="ops",
+            expiration="15m",
+        ),
+    )
+    auth = await users_service.auth(
+        ACCOUNT_ID,
+        DTO.AuthDTO(username="alice", password="password123", scope="ops", expiration="15m", renew_token=False),
+    )
+    old = auth.unwrap()
+
+    await users_service.refresh_token(ACCOUNT_ID, "alice", "15m")
+
+    verify_old = await users_service.verify(
+        ACCOUNT_ID,
+        DTO.VerifyDTO(access_token=old.access_token, username="alice", secret=old.temporal_secret),
+    )
+    assert verify_old.is_err
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_fails_without_active_session(users_service):
+    await users_service.scopes_repository.create(ACCOUNT_ID, DTO.CreateScopeDTO(name="ops"))
+    await users_service.signup(
+        ACCOUNT_ID,
+        DTO.SignUpDTO(
+            username="alice",
+            first_name="Alice",
+            last_name="Doe",
+            email="alice@example.com",
+            password="password123",
+            profile_photo="",
+            scope="ops",
+            expiration="15m",
+        ),
+    )
+
+    result = await users_service.refresh_token(ACCOUNT_ID, "alice", "15m")
+    assert result.is_err
+
+
+@pytest.mark.asyncio
 async def test_delete_user_cascades_acl_groups_and_ngac(users_service_full, users_db):
     acl_repo = users_service_full.acl_repository
     groups_repo = users_service_full.groups_repository
