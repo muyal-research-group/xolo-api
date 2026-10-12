@@ -22,6 +22,9 @@ log            = Log(
         path                   = Cfg.XOLO_LOG_PATH
 )
 
+from xoloapi.middleware.auth_cookie import auth_cookie_middleware
+
+
 
 
 
@@ -50,6 +53,8 @@ app = FastAPI(
 )
 
 
+
+auth_cookie_middleware(app)
 
 
 
