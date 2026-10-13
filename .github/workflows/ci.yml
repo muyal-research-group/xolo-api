@@ -1,4 +1,4 @@
-name: CI
+name: Monorepo CI
 
 on:
   pull_request:
@@ -7,10 +7,13 @@ on:
     branches: [master]
 
 jobs:
-  tests:
+  api-tests:
+    name: API tests
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      XOLO_PLATFORM_BOOTSTRAP_PASSWORD: ci-bootstrap-password
     services:
       mongo:
         image: mongo:7
@@ -41,13 +44,10 @@ jobs:
           python-version: "3.10"
 
       - name: Install Poetry
-        run: pip install poetry
+        run: pip install poetry==2.2.1
 
       - name: Install dependencies
-        run: |
-          poetry lock
-          poetry install --with dev
-
+        run: poetry install --with dev
 
       - name: Run test suite with coverage
         run: |
@@ -62,3 +62,88 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
+  client-tests:
+    name: Client tests
+    runs-on: ubuntu-latest
+    env:
+      XOLO_OUTPUT_PATH: ${{ runner.temp }}/xolo-client-data
+      XOLO_LOG_PATH: ${{ runner.temp }}/xolo-client-logs
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: xolo-client
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Poetry
+        run: pip install poetry==2.2.1
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run client unit and contract tests
+        run: poetry run pytest tests/client/test_client_contracts.py tests/test_abac.py tests/test_acl.py -q
+
+      - name: Build client distributions
+        run: poetry build
+
+  ui-build:
+    name: UI build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: xolo-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: xolo-ui/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  docs-build:
+    name: Zensical docs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Poetry
+        run: pip install poetry==2.2.1
+
+      - name: Install API docs dependencies
+        run: poetry install --with docs
+
+      - name: Install client docs dependencies
+        working-directory: xolo-client
+        run: poetry install --no-interaction
+
+      - name: Build API documentation
+        run: poetry run zensical build -f zensical.toml
+
+      - name: Build client documentation
+        working-directory: xolo-client
+        run: poetry run zensical build -f zensical.toml

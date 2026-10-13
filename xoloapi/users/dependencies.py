@@ -1,4 +1,5 @@
 from fastapi import Depends, HTTPException
+from option import Err, Ok
 
 import xoloapi.config as Cfg
 from xoloapi.db import get_collection, get_database
@@ -12,6 +13,7 @@ from xoloapi.users.infrastructure.cloudflare_users_mailer import CloudflareUsers
 from xoloapi.users.infrastructure.mongo_repository import MongoUsersRepository
 from xoloapi.users.infrastructure.noop_users_mailer import NoOpUsersMailer
 from xoloapi.users.infrastructure.smtp_users_mailer import SMTPUsersMailer
+from xoloapi.errors.base import InternalError, NotFoundError
 
 
 def get_users_repository() -> MongoUsersRepository:
@@ -27,6 +29,29 @@ def get_cache_redis():
     if cache is None:
         raise HTTPException(status_code=500, detail="Cache is not available")
     return cache
+
+
+class AuthUserLookupService:
+    """Minimal user lookup used while validating bearer tokens."""
+
+    def __init__(self, repository: MongoUsersRepository):
+        self.repository = repository
+
+    async def get_by_id(self, user_id: str, account_id: str | None = None):
+        try:
+            user = await self.repository.find_by_id(user_id, account_id=account_id)
+            if user.is_none:
+                return Err(NotFoundError("User", user_id))
+            return Ok(user.unwrap())
+        except Exception as error:
+            return Err(InternalError("Failed to look up authenticated user", cause=error))
+
+
+def get_auth_users_service() -> AuthUserLookupService:
+    # This lookup deliberately has no Redis, mailer, or authorization-policy
+    # dependencies. Missing credentials can therefore be rejected before any
+    # unrelated infrastructure is required.
+    return AuthUserLookupService(repository=get_users_repository())
 
 
 def get_users_mailer():

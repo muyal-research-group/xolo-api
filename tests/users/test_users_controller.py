@@ -63,6 +63,14 @@ async def test_users_controller_full_flow(users_client, users_mailer):
     assert me_res.status_code == 200
     assert me_res.json()["username"] == "alice"
 
+    introspect_res = await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/introspect",
+        headers=headers,
+    )
+    assert introspect_res.status_code == 200
+    assert introspect_res.json()["username"] == "alice"
+    assert introspect_res.json()["key"] == signup_res.json()["key"]
+
     update_res = await users_client.post(
         f"/api/v4/accounts/{ACCOUNT_ID}/users/password-recovery",
         json={"identifier": "alice"},
@@ -120,6 +128,12 @@ async def test_users_controller_full_flow(users_client, users_mailer):
     )
     assert logout_res.status_code == 204
 
+    introspect_after_logout = await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/introspect",
+        headers=auth_headers,
+    )
+    assert introspect_after_logout.status_code == 401
+
 
 @pytest.mark.asyncio
 async def test_users_controller_password_reset_confirm(users_client, users_mailer):
@@ -166,6 +180,67 @@ async def test_users_controller_password_reset_confirm(users_client, users_maile
         },
     )
     assert auth_res.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_signed_in_user_can_change_own_password(users_client):
+    await users_client.post(f"/api/v4/accounts/{ACCOUNT_ID}/scopes", json={"name": "ops"})
+    await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/signup",
+        json={
+            "username": "alice",
+            "first_name": "Alice",
+            "last_name": "Doe",
+            "email": "alice@example.com",
+            "password": "password123",
+            "profile_photo": "",
+            "scope": "ops",
+            "expiration": "15m",
+        },
+    )
+    auth_res = await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/auth",
+        json={
+            "username": "alice",
+            "password": "password123",
+            "scope": "ops",
+            "expiration": "15m",
+            "renew_token": False,
+        },
+    )
+    auth = auth_res.json()
+    headers = {
+        "Authorization": f"Bearer {auth['access_token']}",
+        "Temporal-Secret-Key": auth["temporal_secret"],
+    }
+
+    forbidden = await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/password",
+        json={"username": "somebody-else", "password": "new-password"},
+        headers=headers,
+    )
+    assert forbidden.status_code in {401, 403}
+
+    changed = await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/password",
+        json={"username": "alice", "password": "new-password"},
+        headers=headers,
+    )
+    assert changed.status_code == 200
+    assert changed.json() == {"ok": True}
+
+    assert (await users_client.post(f"/api/v4/accounts/{ACCOUNT_ID}/users/introspect", headers=headers)).status_code == 401
+    reauth = await users_client.post(
+        f"/api/v4/accounts/{ACCOUNT_ID}/users/auth",
+        json={
+            "username": "alice",
+            "password": "new-password",
+            "scope": "ops",
+            "expiration": "15m",
+            "renew_token": False,
+        },
+    )
+    assert reauth.status_code == 200
 
 
 @pytest.mark.asyncio

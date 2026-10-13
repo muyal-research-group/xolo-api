@@ -35,21 +35,29 @@ If you want to start the app yourself:
 XOLO_ENV_FILE=.env.dev uvicorn xoloapi.server:app --reload --host 0.0.0.0 --port 10000
 ```
 
+For a new database, set `XOLO_PLATFORM_BOOTSTRAP_PASSWORD` to a unique value of at least 12 characters before starting the API. In another terminal, start the console with the already installed UI dependencies:
+
+```bash
+cd xolo-ui
+pnpm dev
+```
+
 ## Useful URLs
 
 - API root: `http://localhost:10000`
 - OpenAPI UI: `http://localhost:10000/docs`
-- Admin UI login: `http://localhost:10000/admin/login`
+- Platform console: `http://localhost:3000`
 - OpenAPI JSON: `http://localhost:10000/openapi.json`
 
 ## First account-aware steps
 
 A typical bootstrap flow is:
 
-1. create an account with `POST /api/v4/accounts` and `X-Admin-Token`
-2. create an account-owned API key with `POST /api/v4/accounts/{account_id}/apikeys`
-3. use that key on account-scoped user auth/signup routes such as `POST /api/v4/accounts/{account_id}/users/auth`
-4. manage account-owned scopes, assignments, users, and licenses either through `/admin` or the matching `/api/v4/accounts/{account_id}/...` endpoints
+1. sign in to the local console with the bootstrap platform administrator and change its password
+2. create an account in the console or with `POST /api/v4/accounts`
+3. create an account-owned API key with `POST /api/v4/accounts/{account_id}/apikeys`
+4. use that key on account-scoped user auth/signup routes such as `POST /api/v4/accounts/{account_id}/users/auth`
+5. manage account resources through the console or the matching `/api/v4/accounts/{account_id}/...` endpoints
 
 ## Running tests
 

@@ -1,104 +1,56 @@
-# Authentication and admin
+# Authentication and platform console
 
-Xolo separates user authentication, machine access, and super-admin operations.
+Xolo separates tenant-user sessions, service credentials, emergency administration, and platform-console identities.
 
-## Authentication layers
+## Tenant users
 
-### JWT bearer tokens
+Tenant applications authenticate through account-scoped endpoints such as `POST /api/v4/accounts/{account_id}/users/auth`. Protected application endpoints use the returned bearer token and temporal secret in the same account context.
 
-Normal authenticated API flows use bearer tokens returned by account-scoped endpoints such as:
+## API keys
 
-- `POST /api/v4/accounts/{account_id}/users/auth`
+Account API keys are service credentials sent in `X-API-Key`. They carry scopes, belong to one account, and cannot sign in to the platform console. Trusted automation additionally requires the explicit `service` scope plus the feature scope; `all` deliberately does not imply `service`.
 
-Protected endpoints load the current user through `xoloapi.middleware.get_current_user`. The bearer token is expected to stay inside the same account context.
+Raw API keys are returned only at creation or rotation. The API and console show only safe metadata afterward.
 
-### API Keys
+## Emergency admin tokens
 
-Some endpoints also require:
+`XOLO_SUPER_ADMIN_TOKENS` configures restart-bound `X-Admin-Token` credentials for automation and recovery. These tokens are never returned to the browser console.
 
-```http
-X-API-Key: <key>
+## Platform users
+
+Platform users sign in at `POST /api/v4/platform/session` with a username and password. They are a separate identity type and cannot use their password or console session as an account API key.
+
+The roles are:
+
+- `admin`: all console permissions and all accounts
+- `user`: explicitly assigned read/manage permissions and account IDs
+- `guest`: explicitly assigned read permissions and account IDs; manage permissions are discarded
+
+The last active administrator cannot be deleted, disabled, or demoted. An administrator also cannot delete their own platform identity.
+
+On an empty database, startup creates the initial administrator from `XOLO_PLATFORM_BOOTSTRAP_USERNAME` and `XOLO_PLATFORM_BOOTSTRAP_PASSWORD`. Startup fails if the collection is empty and no valid bootstrap password is configured. The bootstrap user must change the password before using management APIs.
+
+### Locked-out administrator recovery
+
+The bootstrap password creates the first administrator only; changing it does not update an existing user. If every administrator is locked out, run the interactive recovery script from the repository root:
+
+```bash
+./scripts/reset-platform-password
 ```
 
-API Keys carry named scopes and are used for service-to-service access patterns. They are owned by a single account and must be used against URLs under that same `/accounts/{account_id}/...` prefix.
+The wrapper securely prompts for the username, password, and confirmation, builds the current API image if needed, and runs the one-shot reset command. The password must contain at least 12 characters. The script updates only an existing platform user, marks the password for change after sign-in, and invalidates that user's existing sessions.
 
-### Super-admin token
+## Console sessions
 
-Administrative list/create/delete surfaces are protected by:
+Successful login creates an opaque random session in Redis. The browser receives:
 
-```http
-X-Admin-Token: <super-admin-token>
-```
+- an HttpOnly, SameSite=Strict session cookie
+- a readable SameSite=Strict CSRF cookie
 
-Valid tokens come from `XOLO_SUPER_ADMIN_TOKENS`.
+State-changing calls must send the CSRF value in `X-CSRF-Token`; the API verifies both copies. Disabling a user, resetting their password, or changing their permissions invalidates all of that user's sessions.
 
-## Admin UI
+The Nuxt/Vuetify console in `xolo-ui/` uses only these API endpoints. It never reads an admin token or account API key for its own authentication, and Compose exposes it on localhost by default.
 
-The admin UI is mounted at `/admin`.
+## Tenant-user lifecycle
 
-### Login flow
-
-1. the operator opens `/admin/login`
-2. they submit a valid admin token
-3. the UI creates a signed HttpOnly session cookie with account context
-4. subsequent admin pages use that cookie instead of resending the token
-
-### Account selection
-
-After login, the operator selects an account on the admin dashboard:
-
-1. open `/admin` (dashboard)
-2. select an account ID from the dropdown and submit
-3. the account is stored in the session cookie (JWT claim)
-4. all account-owned pages (users, scopes, licenses, API keys, scope assignments) now show data for that account
-5. use the "Clear account" button to reset the selection
-
-Once an account is selected, you don't need to specify it on each page—it persists across navigation.
-
-### Admin UI sections
-
-- **dashboard** - account selection and main navigation
-- **accounts** - create and delete accounts
-- **API Keys** - create and revoke API keys for the selected account
-- **scopes** - create and delete scopes for the selected account
-- **scope assignments** - assign scopes to users within the selected account
-- **users** - create, block/unblock, and delete users in the selected account
-- **licenses** - assign and manage licenses for the selected account
-- **authorization** - ACL, RBAC, ABAC, and NGAC configuration for the selected account
-
-The UI is intentionally simple and is designed for trusted internal operations rather than public self-service.
-
-## User lifecycle notes
-
-### Signup
-
-Signup is account-scoped (`POST /api/v4/accounts/{account_id}/users/signup`) and requires an API key with the `users` scope. It creates the user and then triggers the welcome-email flow through the configured mail provider.
-
-### Token refresh
-
-A logged-in user can exchange their current token for a fresh one without re-entering credentials:
-
-```http
-POST /api/v4/accounts/{account_id}/users/refresh
-Authorization: Bearer <access_token>
-Temporal-Secret-Key: <temporal_secret>
-Content-Type: application/json
-
-{"expiration": "15min"}
-```
-
-The response contains a new `access_token` and `temporal_secret`. The old pair is immediately invalidated — subsequent calls to `/verify` with the old credentials will be rejected. The `expiration` field is optional and defaults to `15min`; it accepts human-friendly values such as `"1h"`, `"30min"`, `"2d"`.
-
-### Password recovery
-
-Password reset requests generate a reset token and send an email through the configured provider.
-
-### User deletion
-
-Deleting a user is a super-admin operation on an account-scoped URL and performs cleanup before removing the user record:
-
-1. delete licenses for the user
-2. delete scope assignments for the user
-3. invalidate password reset tokens
-4. clear cached access token state
-5. delete the user record
+Signup requires an account key with the `users` scope. Session introspection requires a key with both `service` and `users`, and checks the active Redis session so logout takes effect immediately. Password recovery uses the configured mail provider. Tenant-user deletion removes licenses, scope assignments, password-reset tokens, cached session state, and the user record.

@@ -22,3 +22,4 @@ class CollectionNames:
     NGAC_ASSOCIATIONS_COLLECTION_NAME:     str = os.environ.get("XOLO_NGAC_ASSOCIATIONS_COLLECTION",        "ngac_associations")
     RBAC_ROLES_COLLECTION_NAME:            str = os.environ.get("XOLO_RBAC_ROLES_COLLECTION_NAME",          "rbac_roles")
     RBAC_ASSIGNMENTS_COLLECTION_NAME:      str = os.environ.get("XOLO_RBAC_ASSIGNMENTS_COLLECTION_NAME",    "rbac_assignments")
+    PLATFORM_USERS_COLLECTION_NAME:        str = os.environ.get("XOLO_PLATFORM_USERS_COLLECTION_NAME",      "platform_users")

@@ -9,4 +9,5 @@ class APIKeyScope(str, Enum):
     NGAC     = "ngac"
     SCOPES   = "scopes"
     LICENSES = "licenses"
+    SERVICE  = "service"
     ALL      = "all"

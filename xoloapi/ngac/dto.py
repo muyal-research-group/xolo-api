@@ -10,6 +10,11 @@ class CreateNodeDTO(BaseModel):
     properties: Dict[str, str] = {}
 
 
+class UpdateNodeDTO(BaseModel):
+    name:       Optional[str] = None
+    properties: Optional[Dict[str, str]] = None
+
+
 class AssignDTO(BaseModel):
     """Assign from_id (child) into to_id (parent)."""
     from_id: str

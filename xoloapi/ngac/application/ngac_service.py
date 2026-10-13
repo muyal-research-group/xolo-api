@@ -49,6 +49,33 @@ class NGACService:
     async def list_nodes(self, account_id: str, node_type: str | None = None) -> Result[list[NGACNode], XoloException]:
         return await self._repo.list_nodes(account_id, node_type=node_type)
 
+    async def update_node(
+        self,
+        account_id:    str,
+        node_id:       str,
+        name:          str | None = None,
+        properties:    dict[str, str] | None = None,
+        requester_key: str = "",
+        is_admin:      bool = False,
+    ) -> Result[NGACNode, XoloException]:
+        node_result = await self.get_node(account_id, node_id)
+        if node_result.is_err:
+            return node_result
+        node = node_result.unwrap()
+        if not is_admin and not _owns(requester_key, node.owner_id):
+            return Err(AccessDeniedError(f"Node '{node_id}' is owned by another user"))
+        if name is not None:
+            normalized_name = name.strip()
+            if not normalized_name:
+                return Err(ValidationError("Node name cannot be empty"))
+            node.name = normalized_name
+        if properties is not None:
+            node.properties = properties
+        updated = await self._repo.update_node(node)
+        if updated.is_err:
+            return Err(updated.unwrap_err())
+        return Ok(node)
+
     async def delete_node(
         self,
         account_id:    str,

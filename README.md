@@ -38,6 +38,8 @@ Xolo brings together four complementary access-control styles:
 
 Supporting modules like **accounts**, **users**, **scopes**, **licenses**, **API Keys**, and the **admin UI** make those authorization models usable in real applications.
 
+The repository also contains the `xolo-client` Python package and the in-progress Nuxt application under `xolo-ui`, so API/client contracts and releases can be managed together.
+
 ## Multi-Tenant SaaS Model
 
 Xolo is designed as a **multi-tenant IAM service** where each tenant is an **Account**. This enables:
@@ -87,13 +89,15 @@ xolo-api/
 │   ├── scopes/                # Scope management and assignments
 │   ├── licenses/              # License issuance and revocation
 │   ├── apikeys/               # API key creation and management
-│   ├── admin_ui/              # Minimal internal super-admin UI
+│   ├── platform_users/        # Console identities, roles, permissions, sessions
 │   ├── acl/                   # ACL subsystem
 │   ├── groups/                # SecurityGroup shared bounded context (used by ACL and RBAC)
 │   ├── abac/                  # Persisted ABAC Event subsystem
 │   ├── rbac/                  # RBAC subsystem (roles as security groups with permission sets)
 │   └── ngac/                  # NGAC graph subsystem
 ├── tests/                     # Integration and module tests
+├── xolo-client/               # Python SDK and local policy engines
+├── xolo-ui/                   # Local Nuxt/Vuetify platform console
 ├── deploy/env/                # Deployment env files
 ├── assets/                    # Static project assets
 ├── docker-compose.yml         # Full stack deployment
@@ -128,7 +132,7 @@ Open:
 
 - API: `http://localhost:10000`
 - OpenAPI: `http://localhost:10000/docs`
-- Admin UI: `http://localhost:10000/admin/login`
+- Platform console: `http://localhost:3000` with `pnpm dev`, or `http://localhost:3001` with Compose
 
 ## Authentication and admin model
 
@@ -167,6 +171,10 @@ X-API-Key: <account-owned-users-key>
 ```
 
 The API key account must match the `{account_id}` in the request path.
+
+### Trusted service mode
+
+Control planes can automate ACL resources, groups, ownership, effective-access reads, and session introspection with an account API key carrying the explicit `service` scope plus the relevant feature scope. `all` does not imply `service`. See the [service integration guide](docs/service-integrations.md).
 
 ## Email delivery
 

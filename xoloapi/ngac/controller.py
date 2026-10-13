@@ -15,6 +15,7 @@ from xoloapi.ngac.dto import (
     AssignDTO, AssociateDTO, CheckAccessDTO,
     CreateNodeDTO, NGACDecisionDTO, NGACNodeResponseDTO,
     NGACAssignmentResponseDTO, NGACAssociationResponseDTO, RemoveAssignmentDTO,
+    UpdateNodeDTO,
 )
 from xoloapi.ngac.infrastructure.mongo_ngac_repository import MongoNGACRepository
 from xoloapi.db.constants import CollectionNames
@@ -103,6 +104,32 @@ async def get_node(
         log.error(build_log_payload("ngac.get_node.error", started_at=t1, error=err, actor_user_id=me.key, node_id=node_id))
         raise err.to_http_exception()
     log.info(build_log_payload("ngac.get_node", started_at=t1, actor_user_id=me.key, node_id=node_id))
+    return NGACNodeResponseDTO.model_validate(result.unwrap())
+
+
+@router.patch("/nodes/{node_id}", status_code=status.HTTP_200_OK)
+async def update_node(
+    account_id: str,
+    node_id: str,
+    dto:       UpdateNodeDTO,
+    _:         object      = Depends(require_api_key("ngac")),
+    me:        DTO.UserDTO = Depends(MX.get_current_user),
+    service:   NGACService = Depends(get_ngac_service),
+):
+    t1 = T.time()
+    result = await service.update_node(
+        account_id,
+        node_id,
+        name=dto.name,
+        properties=dto.properties,
+        requester_key=me.key,
+        is_admin=Cfg.is_superadmin(me),
+    )
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error(build_log_payload("ngac.update_node.error", started_at=t1, error=err, actor_user_id=me.key, node_id=node_id))
+        raise err.to_http_exception()
+    log.info(build_log_payload("ngac.update_node", started_at=t1, actor_user_id=me.key, node_id=node_id))
     return NGACNodeResponseDTO.model_validate(result.unwrap())
 
 

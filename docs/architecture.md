@@ -48,7 +48,7 @@ Used for:
 
 These packages keep their own controller/application/domain/infrastructure structure or local service composition so subsystem logic stays together.
 
-`admin_ui` is a small exception: it is mostly controller- and template-driven rather than a full domain package.
+`platform_users` follows the layered pattern and owns console identities, roles, granular UI permissions, account restrictions, and session authorization. The separately built `xolo-ui` Nuxt application communicates only through the HTTP API.
 
 For a module-by-module view of the feature packages under `xoloapi/`, see [Project structure](project-structure.md).
 

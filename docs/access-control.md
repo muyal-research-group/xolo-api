@@ -4,7 +4,7 @@ Xolo supports several authorization styles because real systems often need more 
 
 ## ACL
 
-**Base path:** `/api/v4/acl`
+**Base path:** `/api/v4/accounts/{account_id}/acl`
 
 ACL is the ownership-and-sharing model.
 
@@ -20,6 +20,7 @@ ACL is the ownership-and-sharing model.
 - owners grant and revoke permissions
 - permissions can be granted to users or groups
 - effective access is the union of direct and group permissions
+- an owner effectively has `read`, `write`, `update`, `delete`, and `sys:manage`
 
 ### Groups
 
@@ -49,11 +50,13 @@ Groups are managed via the shared `xoloapi/groups/` bounded context (also used b
 | Field | Required | Description |
 | --- | --- | --- |
 | `resource_id` | yes | The resource to check |
-| `permissions` | yes | List of permission strings (`read`, `write`, `delete`, `sys:manage`) |
+| `permissions` | yes | List of permission strings (`read`, `write`, `update`, `delete`, `sys:manage`) |
 | `principal_id` | no | ID of the user or group to check. Defaults to the authenticated caller |
 | `principal_type` | no | `USER` or `GROUP`. Informational — the check resolves principals by ID |
 
 When `principal_id` is omitted the check uses the authenticated user and expands all groups that user owns or belongs to. When a group ID is supplied directly the check resolves the group's own grants.
+
+Trusted backends should use the dedicated service endpoints instead of borrowing a user's token. See [Service integrations](service-integrations.md).
 
 ## ABAC Event
 

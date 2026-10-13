@@ -14,7 +14,8 @@ from xoloapi.apikeys.infrastructure.mongo_repository import MongoAPIKeyRepositor
 from xoloapi.accounts.dependencies import require_existing_account
 from xoloapi.db.constants import CollectionNames
 from xoloapi.log.format import build_log_payload
-from xoloapi.middleware.admin import require_admin_token
+from xoloapi.middleware.admin import require_admin_or_platform
+from xoloapi.platform_users.domain.value_objects import PlatformPermission
 
 log = Log(
     name                   = __name__,
@@ -50,7 +51,7 @@ def get_apikey_service() -> APIKeyService:
 async def create_api_key(
     account_id: str,
     dto:     CreateAPIKeyDTO,
-    _:       None          = Depends(require_admin_token),
+    _:       object        = Depends(require_admin_or_platform(PlatformPermission.API_KEYS_MANAGE)),
     service: APIKeyService = Depends(get_apikey_service),
 ):
     t1     = T.time()
@@ -82,7 +83,7 @@ async def create_api_key(
 )
 async def list_api_keys(
     account_id: str,
-    _:       None          = Depends(require_admin_token),
+    _:       object        = Depends(require_admin_or_platform(PlatformPermission.API_KEYS_READ)),
     service: APIKeyService = Depends(get_apikey_service),
 ):
     t1 = T.time()
@@ -104,7 +105,7 @@ async def list_api_keys(
 async def get_api_key(
     account_id: str,
     key_id:  str,
-    _:       None          = Depends(require_admin_token),
+    _:       object        = Depends(require_admin_or_platform(PlatformPermission.API_KEYS_READ)),
     service: APIKeyService = Depends(get_apikey_service),
 ):
     t1 = T.time()
@@ -134,7 +135,7 @@ async def get_api_key(
 async def revoke_api_key(
     account_id: str,
     key_id:  str,
-    _:       None          = Depends(require_admin_token),
+    _:       object        = Depends(require_admin_or_platform(PlatformPermission.API_KEYS_MANAGE)),
     service: APIKeyService = Depends(get_apikey_service),
 ):
     t1     = T.time()
@@ -165,7 +166,7 @@ async def revoke_api_key(
 async def rotate_api_key(
     account_id: str,
     key_id:  str,
-    _:       None          = Depends(require_admin_token),
+    _:       object        = Depends(require_admin_or_platform(PlatformPermission.API_KEYS_MANAGE)),
     service: APIKeyService = Depends(get_apikey_service),
 ):
     t1     = T.time()

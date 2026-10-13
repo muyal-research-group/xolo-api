@@ -1,8 +1,6 @@
 import hmac
 from fastapi import Header, HTTPException, status, Request
 from xoloapi.log import Log
-from jwt import InvalidTokenError
-import jwt
 
 import xoloapi.config as Cfg
 from xoloapi.log.format import build_log_payload
@@ -44,46 +42,22 @@ async def require_admin_token(
     log.debug(build_log_payload("middleware.admin_token.validate"))
 
 
-def _get_admin_ui_session(request: Request) -> dict | None:
-    """Extract admin UI session from cookie."""
-    cookie_name = Cfg.XOLO_ADMIN_UI_SESSION_COOKIE_NAME
-    token = request.cookies.get(cookie_name)
-    if not token:
-        return None
-    try:
-        payload = jwt.decode(
-            token,
-            Cfg.XOLO_ADMIN_UI_SESSION_SECRET,
-            algorithms=[Cfg.XOLO_JWT_ALGORITHM],
-        )
-    except InvalidTokenError:
-        return None
-    if payload.get("sub") != "admin-ui":
-        return None
-    return payload
+def require_admin_or_platform(permission):
+    """Allow an emergency admin token or a permissioned platform session."""
+    async def dependency(
+        request: Request,
+        x_admin_token: str | None = Header(None, alias="X-Admin-Token"),
+    ):
+        if x_admin_token and is_valid_admin_token(x_admin_token):
+            return None
+        from xoloapi.platform_users.dependencies import authorize_platform_request
 
+        user = await authorize_platform_request(request)
+        if user.must_change_password:
+            raise HTTPException(status_code=403, detail="Password change required")
+        account_id = request.path_params.get("account_id")
+        if not user.can(permission, account_id):
+            raise HTTPException(status_code=403, detail=f"Missing platform permission: {permission.value}")
+        return user
 
-async def require_admin_session_or_token(
-    request: Request,
-    x_admin_token: str = Header(None, alias="X-Admin-Token"),
-) -> None:
-    """Allow either admin UI session cookie OR X-Admin-Token header."""
-    # Try admin token first
-    if x_admin_token and is_valid_admin_token(x_admin_token):
-        log.debug(build_log_payload("middleware.admin_auth.token_valid"))
-        return
-    
-    # Try session cookie
-    session = _get_admin_ui_session(request)
-    if session is not None:
-        log.debug(build_log_payload("middleware.admin_auth.session_valid"))
-        return
-    
-    # Both failed
-    log.warning(build_log_payload("middleware.admin_auth.failed"))
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or missing admin token/session",
-        headers={"WWW-Authenticate": "AdminToken"},
-    )
-
+    return dependency

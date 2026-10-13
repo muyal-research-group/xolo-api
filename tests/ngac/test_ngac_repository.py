@@ -43,6 +43,21 @@ async def test_create_duplicate_node_returns_err(ngac_repo: MongoNGACRepository)
 
 
 @pytest.mark.asyncio
+async def test_update_node_persists_name_and_properties(ngac_repo: MongoNGACRepository):
+    node = _node("n-edit", NodeType.USER_ATTRIBUTE)
+    await ngac_repo.create_node(node)
+    node.name = "Editors"
+    node.properties = {"department": "publishing"}
+
+    result = await ngac_repo.update_node(node)
+
+    assert result.is_ok
+    stored = (await ngac_repo.find_node(ACCOUNT_ID, "n-edit")).unwrap().unwrap()
+    assert stored.name == "Editors"
+    assert stored.properties == {"department": "publishing"}
+
+
+@pytest.mark.asyncio
 async def test_get_node_returns_correct_record(ngac_repo: MongoNGACRepository):
     await ngac_repo.create_node(_node("n-ua", NodeType.USER_ATTRIBUTE))
     result = await ngac_repo.find_node(ACCOUNT_ID, "n-ua")

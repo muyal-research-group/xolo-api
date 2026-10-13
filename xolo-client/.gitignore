@@ -1,0 +1,15 @@
+# log/
+*.lock
+!poetry.lock
+dist/
+data/
+**/**/__pycache__
+.pytest_cache/
+.coverage
+exports/
+*.gexf
+site/
+.cache
+.ruff_cache/
+.claude
+CLAUDE.md

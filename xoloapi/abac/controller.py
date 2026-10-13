@@ -70,18 +70,8 @@ def _policy_to_dto(policy) -> ABACPolicyResponseDTO:
     )
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
-
-@router.post("/policies", status_code=status.HTTP_201_CREATED)
-async def create_policy(
-    account_id: str,
-    dto:     CreateABACPolicyDTO,
-    _:       object      = Depends(require_api_key("abac")),
-    me:      DTO.UserDTO = Depends(MX.get_current_user),
-    service: ABACService = Depends(get_abac_service),
-):
-    t1     = T.time()
-    events = [
+def _events_from_dto(dto: CreateABACPolicyDTO) -> list[ABACEvent]:
+    return [
         ABACEvent(
             event_id = f"ev-{generate(size=8)}",
             subject  = Subject(value=ev.subject),
@@ -95,6 +85,20 @@ async def create_policy(
         )
         for ev in dto.events
     ]
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.post("/policies", status_code=status.HTTP_201_CREATED)
+async def create_policy(
+    account_id: str,
+    dto:     CreateABACPolicyDTO,
+    _:       object      = Depends(require_api_key("abac")),
+    me:      DTO.UserDTO = Depends(MX.get_current_user),
+    service: ABACService = Depends(get_abac_service),
+):
+    t1     = T.time()
+    events = _events_from_dto(dto)
     result = await service.create_policy(account_id, dto.name, dto.effect, events)
     if result.is_err:
         err = result.unwrap_err()
@@ -139,6 +143,36 @@ async def get_policy(
         raise err.to_http_exception()
     log.info(build_log_payload("abac.get_policy", started_at=t1, actor_user_id=me.key, policy_id=policy_id))
     return _policy_to_dto(result.unwrap())
+
+
+@router.put("/policies/{policy_id}", status_code=status.HTTP_200_OK)
+async def update_policy(
+    account_id: str,
+    policy_id: str,
+    dto:       CreateABACPolicyDTO,
+    _:         object      = Depends(require_api_key("abac")),
+    me:        DTO.UserDTO = Depends(MX.get_current_user),
+    service:   ABACService = Depends(get_abac_service),
+):
+    t1 = T.time()
+    result = await service.update_policy(
+        account_id,
+        policy_id,
+        dto.name,
+        dto.effect,
+        _events_from_dto(dto),
+    )
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error(build_log_payload("abac.update_policy.error", started_at=t1, error=err, actor_user_id=me.key, policy_id=policy_id))
+        raise err.to_http_exception()
+
+    updated = await service.get_policy(account_id, policy_id)
+    if updated.is_err:
+        err = updated.unwrap_err()
+        raise err.to_http_exception()
+    log.info(build_log_payload("abac.update_policy", started_at=t1, actor_user_id=me.key, policy_id=policy_id))
+    return _policy_to_dto(updated.unwrap())
 
 
 @router.delete("/policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)

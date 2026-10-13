@@ -7,7 +7,7 @@ from xoloapi.security import Security
 import xoloapi.errors as EX
 import xoloapi.dto as DTO
 from xoloapi.log import Log
-from xoloapi.users.dependencies import get_users_service as get_user_service
+from xoloapi.users.dependencies import get_auth_users_service as get_user_service
 
 import xoloapi.config as Cfg
 from xoloapi.log.format import build_log_payload
@@ -20,16 +20,31 @@ log            = Log(
         path                   = Cfg.XOLO_LOG_PATH
 )
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 async def __get_current_user(
     request: Request,
-    token: Annotated[str, Depends(oauth2_scheme)], 
+    token: Annotated[Optional[str], Depends(oauth2_scheme)],
     temporal_secret_key: Annotated[Optional[str], Header(alias="Temporal-Secret-Key")] = None,
     users_service: SX.UsersService = Depends(get_user_service)
 ):
 
     try:
+        if request.cookies.get(Cfg.XOLO_PLATFORM_SESSION_COOKIE_NAME):
+            from xoloapi.platform_users.dependencies import authorize_platform_request
+
+            platform_user = await authorize_platform_request(request)
+            return DTO.UserDTO(
+                key           = f"platform:{platform_user.user_id}",
+                username      = platform_user.username,
+                first_name    = "Platform",
+                last_name     = "User",
+                email         = f"{platform_user.user_id}@xolo.com",
+                profile_photo = "",
+                disabled      = not platform_user.is_active,
+            )
+        if not token:
+            raise EX.InvalidCredentialsError().to_http_exception()
         if temporal_secret_key is None:
             temporal_secret_key = Security.SECRET_KEY
             log.warning(build_log_payload("middleware.current_user.secret_key.default"))

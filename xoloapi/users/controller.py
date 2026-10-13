@@ -1,7 +1,7 @@
 import time as T
 from typing import Annotated
 
-from fastapi import Depends, Response, status
+from fastapi import Depends, Header, Response, status
 from fastapi.routing import APIRouter
 from xoloapi.log import Log
 
@@ -11,8 +11,9 @@ import xoloapi.config as Cfg
 import xoloapi.middleware as MX
 from xoloapi.accounts.dependencies import require_existing_account
 from xoloapi.log.format import build_log_payload
-from xoloapi.middleware.admin import require_admin_token, require_admin_session_or_token
-from xoloapi.middleware.apikey import require_api_key
+from xoloapi.middleware.admin import require_admin_or_platform
+from xoloapi.middleware.apikey import require_api_key, require_service_api_key
+from xoloapi.platform_users.domain.value_objects import PlatformPermission
 from xoloapi.users.application.users_service import UsersService
 from xoloapi.users.dependencies import get_users_service
 import xoloapi.users.dto as DTO
@@ -32,7 +33,7 @@ log = Log(
 async def create_user(
     account_id: str,
     user_dto: DTO.CreateUserDTO,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_admin_or_platform(PlatformPermission.USERS_MANAGE)),
     users_service: UsersService = Depends(get_users_service),
 ):
     t1 = T.time()
@@ -48,7 +49,7 @@ async def create_user(
 @router.get("/list")
 async def list_users(
     account_id: str,
-    _: object = Depends(require_admin_session_or_token),
+    _: object = Depends(require_admin_or_platform(PlatformPermission.USERS_READ)),
     users_service: UsersService = Depends(get_users_service),
 ):
     """List all users in the account. Used for dropdowns/autocomplete in forms."""
@@ -92,6 +93,29 @@ async def verify(
         return Response(status_code=204)
     error = response.unwrap_err()
     log.error(build_log_payload("users.verify.error", started_at=t1, error=error, username=verify_dto.username))
+    raise error.to_http_exception()
+
+
+@router.post("/introspect", response_model=DTO.UserDTO)
+async def introspect_session(
+    account_id: str,
+    token: Annotated[str, Depends(MX.oauth2_scheme)],
+    temporal_secret: Annotated[str, Header(alias="Temporal-Secret-Key")],
+    _: object = Depends(require_service_api_key("users")),
+    users_service: UsersService = Depends(get_users_service),
+):
+    t1 = T.time()
+    response = await users_service.introspect_session(
+        account_id=account_id,
+        access_token=token,
+        temporal_secret=temporal_secret,
+    )
+    if response.is_ok:
+        user = response.unwrap()
+        log.info(build_log_payload("users.session.introspect", started_at=t1, user_id=user.key, username=user.username))
+        return user
+    error = response.unwrap_err()
+    log.warning(build_log_payload("users.session.introspect.error", started_at=t1, error=error))
     raise error.to_http_exception()
 
 
@@ -195,6 +219,31 @@ async def auth(
     raise error.to_http_exception()
 
 
+@router.post("/password")
+async def change_my_password(
+    account_id: str,
+    password_dto: DTO.UpdateUserPasswordDTO,
+    current_user: Annotated[DTO.UserDTO, Depends(MX.get_current_user)],
+    users_service: UsersService = Depends(get_users_service),
+) -> DTO.UpdateUserPasswordResponseDTO:
+    """Change the password for the currently authenticated tenant user."""
+    t1 = T.time()
+    username = password_dto.username.strip()
+    if username != current_user.username:
+        raise EX.AccessDenied(
+            raw_detail="You can only change the password for your own user account."
+        ).to_http_exception()
+
+    response = await users_service.update_password(account_id=account_id, dto=password_dto)
+    if response.is_ok:
+        log.info(build_log_payload("users.password_change", started_at=t1, username=username))
+        return response.unwrap()
+
+    error = response.unwrap_err()
+    log.error(build_log_payload("users.password_change.error", started_at=t1, error=error, username=username))
+    raise error.to_http_exception()
+
+
 @router.get("")
 async def me(account_id: str, current_user: Annotated[DTO.UserDTO, Depends(MX.get_current_user)]):
     t1 = T.time()
@@ -205,7 +254,7 @@ async def me(account_id: str, current_user: Annotated[DTO.UserDTO, Depends(MX.ge
 @router.get("/all")
 async def list_users(
     account_id: str,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_admin_or_platform(PlatformPermission.USERS_READ)),
     users_service: UsersService = Depends(get_users_service),
 ):
     t1 = T.time()
@@ -239,7 +288,7 @@ async def delete_user(
 async def block_user(
     account_id: str,
     username: str,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_admin_or_platform(PlatformPermission.USERS_MANAGE)),
     users_service: UsersService = Depends(get_users_service),
 ):
     t1 = T.time()
@@ -256,7 +305,7 @@ async def block_user(
 async def unblock_user(
     account_id: str,
     username: str,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_admin_or_platform(PlatformPermission.USERS_MANAGE)),
     users_service: UsersService = Depends(get_users_service),
 ):
     t1 = T.time()

@@ -3,8 +3,11 @@ import time as T
 #
 from xoloapi.log import Log
 # 
-from xoloapi.db import connect_to_mongo,close_mongo_connection
-from xoloapi.controllers import accounts_router,licenses_router,scopes_router,users_router,acl_router,abac_router,ngac_router,apikeys_router,rbac_router,admin_ui_router
+from xoloapi.db import connect_to_mongo, close_mongo_connection, get_collection
+from xoloapi.controllers import accounts_router,licenses_router,scopes_router,users_router,acl_router,abac_router,ngac_router,apikeys_router,rbac_router,platform_users_router
+from xoloapi.db.constants import CollectionNames
+from xoloapi.platform_users.application import PlatformUserService
+from xoloapi.platform_users.infrastructure.mongo_repository import MongoPlatformUserRepository
 # 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -22,13 +25,6 @@ log            = Log(
         path                   = Cfg.XOLO_LOG_PATH
 )
 
-from xoloapi.middleware.auth_cookie import auth_cookie_middleware
-
-
-
-
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     startup_time = T.time()
@@ -36,6 +32,22 @@ async def lifespan(app: FastAPI):
     try:
         await connect_to_mongo()
         await connect_to_redis()
+        platform_service = PlatformUserService(
+            MongoPlatformUserRepository(
+                get_collection(CollectionNames.PLATFORM_USERS_COLLECTION_NAME)
+            )
+        )
+        bootstrap = await platform_service.bootstrap(
+            Cfg.XOLO_PLATFORM_BOOTSTRAP_USERNAME,
+            Cfg.XOLO_PLATFORM_BOOTSTRAP_PASSWORD,
+        )
+        if bootstrap.is_err:
+            raise bootstrap.unwrap_err()
+        if bootstrap.unwrap() is not None:
+            log.info(build_log_payload(
+                "platform.bootstrap.created",
+                username=bootstrap.unwrap().username,
+            ))
         log.info(build_log_payload("runtime.app.started", started_at=startup_time))
         yield
     finally:
@@ -51,10 +63,6 @@ app = FastAPI(
     title     = Cfg.XOLO_OPENAPI_TITLE,
     lifespan  = lifespan
 )
-
-
-
-auth_cookie_middleware(app)
 
 
 
@@ -92,7 +100,6 @@ app.include_router(abac_router,    prefix="/api/v4", tags=["abac"])
 app.include_router(ngac_router,    prefix="/api/v4", tags=["ngac"])
 app.include_router(apikeys_router, prefix="/api/v4", tags=["apikeys"])
 app.include_router(rbac_router,    prefix="/api/v4", tags=["rbac"])
-app.include_router(admin_ui_router)
-
+app.include_router(platform_users_router, prefix="/api/v4", tags=["platform"])
 
 

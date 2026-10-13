@@ -12,11 +12,12 @@ async def test_apikeys_controller_is_account_scoped():
     async with app_client(DB_NAME, COLLECTIONS, admin_token="admin-token", account_ids=["acc-a", "acc-b"]) as client:
         create_res = await client.post(
             "/api/v4/accounts/acc-a/apikeys",
-            json={"name": "ops-admin", "scopes": ["users", "licenses"]},
+            json={"name": "ops-admin", "scopes": ["users", "licenses", "service"]},
         )
         assert create_res.status_code == 201
         body = create_res.json()
         assert body["account_id"] == "acc-a"
+        assert body["scopes"] == ["users", "licenses", "service"]
         assert body["key"].startswith("XOLO_")
         key_id = body["key_id"]
 

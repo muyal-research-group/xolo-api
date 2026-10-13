@@ -43,6 +43,19 @@ class MongoNGACRepository(INGACRepository):
             log.error(build_log_payload("ngac.repository.create_node.error", error=e, node_id=node.node_id, node_type=node.node_type))
             return Err(DatabaseError(cause=e))
 
+    async def update_node(self, node: NGACNode) -> Result[bool, XoloException]:
+        try:
+            result = await self._nodes.replace_one(
+                {"account_id": node.account_id, "node_id": node.node_id},
+                node.model_dump(),
+            )
+            if result.matched_count == 0:
+                return Err(NotFoundError("NGACNode", node.node_id))
+            return Ok(True)
+        except Exception as e:
+            log.error(build_log_payload("ngac.repository.update_node.error", error=e, node_id=node.node_id))
+            return Err(DatabaseError(cause=e))
+
     async def find_node(self, account_id: str, node_id: str) -> Result[object, XoloException]:
         try:
             doc = await self._nodes.find_one({"account_id": account_id, "node_id": node_id}, {"_id": 0})

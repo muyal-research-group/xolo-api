@@ -1,0 +1,7 @@
+    {
+      "subject": {"attribute": "rol", "value": "Medico"},
+      "asset": {"attribute": "recurso", "value": "Expediente"},
+      "space": {"attribute": "ubicacion", "value": "Hospital"},
+      "time": {"attribute": "rango_horario", "value": "10:00"},
+      "action": {"attribute": "accion", "value": "lectura"}
+    }

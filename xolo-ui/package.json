@@ -1,0 +1,24 @@
+{
+  "name": "xolo-ui",
+  "version": "0.1.0-alpha.5",
+  "packageManager": "pnpm@11.5.2",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@mdi/font": "^7.4.47",
+    "nuxt": "^4.6.1",
+    "vue": "^3.5.43",
+    "vue-router": "^5.4.0",
+    "vuetify": "^4.2.4"
+  },
+  "devDependencies": {
+    "vuetify-nuxt-module": "1.0.0-rc.6"
+  }
+}

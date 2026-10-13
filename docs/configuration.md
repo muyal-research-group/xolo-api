@@ -55,10 +55,12 @@ XOLO_ENV_FILE=.env.dev
 | --- | --- |
 | `XOLO_LICENSE_SECRET_KEY` | license-related secret key |
 | `XOLO_SUPER_ADMIN_TOKENS` | comma-separated super-admin tokens |
-| `XOLO_ADMIN_UI_SESSION_SECRET` | admin UI cookie signing secret |
-| `XOLO_ADMIN_UI_SESSION_COOKIE_NAME` | admin UI cookie name |
-| `XOLO_ADMIN_UI_SESSION_MAX_AGE` | admin UI session lifetime |
-| `XOLO_ADMIN_UI_SESSION_SECURE` | secure cookie flag |
+| `XOLO_PLATFORM_BOOTSTRAP_USERNAME` | initial platform administrator username |
+| `XOLO_PLATFORM_BOOTSTRAP_PASSWORD` | initial password; required only while the platform-user collection is empty |
+| `XOLO_PLATFORM_SESSION_COOKIE_NAME` | opaque platform-session cookie name |
+| `XOLO_PLATFORM_CSRF_COOKIE_NAME` | double-submit CSRF cookie name |
+| `XOLO_PLATFORM_SESSION_MAX_AGE` | Redis session lifetime |
+| `XOLO_PLATFORM_SESSION_SECURE` | secure-cookie flag; enable when the console is served over HTTPS |
 
 Legacy aliases remain supported for compatibility:
 
@@ -116,5 +118,6 @@ For local development, prefer:
 - use strong unique secrets
 - set real `XOLO_SUPER_ADMIN_TOKENS`
 - configure a real mail provider
-- enable secure cookies for admin UI behind HTTPS
+- set a unique bootstrap password before first startup and change it on first login
+- enable secure platform-session cookies when the console is behind HTTPS
 - review public ports and reverse-proxy settings

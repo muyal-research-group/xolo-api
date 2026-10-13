@@ -1,0 +1,42 @@
+[tool.poetry]
+name = "xolo"
+version = "0.1.0a5"
+description = ""
+authors = ["Ignacio Castillo <jcastillo@mictlanx.com>"]
+readme = "README.md"
+packages = [{include = "xolo"}]
+classifiers = [
+    "License :: Other/Proprietary License",
+]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4"
+option = "^2.1.0"
+pycryptodome = "^3.20.0"
+humanfriendly = "^10.0"
+cryptography = "^42.0.5"
+requests = "^2.31.0"
+python-dotenv = "^1.1.0"
+networkx = "^3.4.2"
+pydantic = "^2.11.4"
+pyparsing = "^3.2.5"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.1.1"
+numpy = "1.24.0"
+pandas = "^1.4.3"
+coverage = "^7.13.5"
+zensical = "^0.0.29"
+mkdocstrings-python = "^2.0.3"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[[tool.poetry.source]]
+name = "test"
+url = "https://test.pypi.org/simple/"
+priority = "supplemental"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

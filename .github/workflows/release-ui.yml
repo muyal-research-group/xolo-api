@@ -1,0 +1,84 @@
+name: Release UI image
+
+on:
+  push:
+    tags:
+      - "ui-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify and build UI
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      stable: ${{ steps.version.outputs.stable }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        name: Verify UI version
+        run: |
+          VERSION="${GITHUB_REF_NAME#ui-v}"
+          test "$VERSION" = "$(cat xolo-ui/VERSION)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "stable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stable=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: xolo-ui/pnpm-lock.yaml
+      - name: Install locked dependencies
+        working-directory: xolo-ui
+        run: pnpm install --frozen-lockfile
+      - name: Build UI
+        working-directory: xolo-ui
+        run: pnpm build
+
+  publish-image:
+    name: Publish UI image
+    needs: verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and publish UI image
+        uses: docker/build-push-action@v6
+        with:
+          context: xolo-ui
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: true
+          sbom: true
+          build-args: |
+            XOLO_VERSION=${{ needs.verify.outputs.version }}
+          tags: |
+            nachocode/xolo:ui-${{ needs.verify.outputs.version }}
+
+      - name: Tag stable UI image as latest
+        if: needs.verify.outputs.stable == 'true'
+        run: >-
+          docker buildx imagetools create
+          --tag nachocode/xolo:ui-latest
+          nachocode/xolo:ui-${{ needs.verify.outputs.version }}

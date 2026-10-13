@@ -13,6 +13,9 @@ class INGACRepository(ABC):
     async def create_node(self, node: NGACNode) -> Result[str, XoloException]: ...
 
     @abstractmethod
+    async def update_node(self, node: NGACNode) -> Result[bool, XoloException]: ...
+
+    @abstractmethod
     async def find_node(self, account_id: str, node_id: str) -> Result[Option[NGACNode], XoloException]: ...
 
     @abstractmethod

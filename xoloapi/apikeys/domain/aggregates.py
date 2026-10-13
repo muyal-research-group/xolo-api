@@ -35,9 +35,14 @@ class APIKey(BaseModel):
         return True
 
     def allows(self, scope: str) -> bool:
+        requested = APIKeyScope(scope)
+        # SERVICE is deliberately excluded from ALL. Existing broad keys must
+        # never silently acquire trusted service-to-service authority.
+        if requested == APIKeyScope.SERVICE:
+            return APIKeyScope.SERVICE in self.scopes
         return (
             APIKeyScope.ALL in self.scopes
-            or APIKeyScope(scope) in self.scopes
+            or requested in self.scopes
         )
 
     def revoke(self) -> "APIKey":

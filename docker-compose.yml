@@ -98,6 +98,34 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  xolo-ui:
+    build:
+      context: ./xolo-ui
+      dockerfile: Dockerfile
+      args:
+        XOLO_VERSION: ${XOLO_VERSION:-development}
+    image: ${XOLO_UI_IMAGE:-xolo-ui:latest}
+    container_name: ${XOLO_UI_CONTAINER_NAME:-xolo-ui}
+    environment:
+      NUXT_PUBLIC_API_BASE: ${XOLO_UI_API_BASE:-http://localhost:10000/api/v4}
+      NUXT_PUBLIC_VERSION: ${XOLO_VERSION:-development}
+      HOST: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "${XOLO_UI_PUBLIC_PORT:-3001}:3000"
+    networks:
+      - xolo-net
+    depends_on:
+      xolo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
 networks:
   xolo-net:
     name: ${XOLO_NETWORK_NAME:-xolo-net}
