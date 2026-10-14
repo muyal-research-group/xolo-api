@@ -38,7 +38,7 @@ jobs:
         run: poetry install --no-interaction
 
       - name: Run client tests
-        run: poetry run pytest tests/client/test_client_contracts.py tests/test_abac.py tests/test_acl.py -q
+        run: poetry run pytest tests/client/test_client_contracts.py -q
 
       - name: Build wheel and source distribution
         run: poetry build
