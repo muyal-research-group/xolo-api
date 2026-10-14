@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
   push:
 
+
 jobs:
   api-tests:
     name: API tests
@@ -65,8 +66,8 @@ jobs:
     name: Client tests
     runs-on: ubuntu-latest
     env:
-      XOLO_OUTPUT_PATH: ${{ runner.temp }}/xolo-client-data
-      XOLO_LOG_PATH: ${{ runner.temp }}/xolo-client-logs
+      XOLO_OUTPUT_PATH: $GITHUB_WORKSPACE/xolo-client-data
+      XOLO_LOG_PATH: $GITHUB_WORKSPACE/xolo-client-logs
     permissions:
       contents: read
     defaults:
