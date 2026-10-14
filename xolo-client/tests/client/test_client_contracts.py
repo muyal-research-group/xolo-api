@@ -220,6 +220,34 @@ def test_update_user_password_requires_recovery_token():
     assert isinstance(error, E.ValidationError)
 
 
+def test_update_acl_grant_uses_stable_grant_endpoint_and_permissions_body():
+    client = XoloClient(account_id="acct-1", api_key="api-key", api_url="http://localhost:10000/api/v4")
+    payload = {
+        "grant_id": "grant-1",
+        "principal_id": "user-1",
+        "principal_type": "USER",
+        "principal_name": "alice",
+        "permissions": ["read", "write"],
+        "is_owner": False,
+    }
+
+    with patch("xolo.client.client.R.request", return_value=_response(payload)) as request:
+        result = client.update_acl_grant(
+            resource_id="document-1",
+            grant_id="grant-1",
+            permissions=["read", "write"],
+            token="bearer-1",
+            temporal_secret="temp-1",
+        )
+
+    assert result.is_ok
+    assert isinstance(result.unwrap(), M.ResourceGrantDTO)
+    kwargs = request.call_args.kwargs
+    assert kwargs["method"] == "PATCH"
+    assert kwargs["url"] == "http://localhost:10000/api/v4/accounts/acct-1/acl/resources/document-1/grants/grant-1"
+    assert kwargs["json"] == {"permissions": ["read", "write"]}
+
+
 def test_delete_user_uses_account_scoped_url_and_api_key_header():
     client = XoloClient(account_id="acct-1", api_key="test-api-key", api_url="http://localhost:10000/api/v4")
 
@@ -296,19 +324,17 @@ def test_service_effective_access_parses_permissions_and_groups():
     assert request.call_args.kwargs["headers"] == {"X-API-Key": "service-key"}
 
 
-def test_service_group_creation_carries_the_external_owner_id():
+def test_group_references_use_the_shared_groups_route():
     client = XoloClient(account_id="acct-1", api_key="service-key", api_url="http://localhost:10000/api/v4")
 
-    with patch("xolo.client.client.R.request", return_value=_response({"group_id": "g-team-owner"})) as request:
-        result = client.service_create_group("team:1:owners", "user-1")
+    with patch("xolo.client.client.R.request", return_value=_response([
+        {"group_id": "g-team-owner", "name": "team:1:owners", "is_active": True}
+    ])) as request:
+        result = client.list_group_references()
 
     assert result.is_ok
-    assert result.unwrap().group_id == "g-team-owner"
-    assert request.call_args.kwargs["json"] == {
-        "name": "team:1:owners",
-        "owner_id": "user-1",
-        "description": "",
-    }
+    assert result.unwrap()[0].group_id == "g-team-owner"
+    assert request.call_args.kwargs["url"].endswith("/accounts/acct-1/groups/references")
 
 
 def test_refresh_token_uses_bearer_headers_and_account_scoped_url():

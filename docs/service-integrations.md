@@ -67,3 +67,25 @@ Session introspection is `POST /api/v4/accounts/{account_id}/users/introspect`. 
 Xolo API keys identify trusted services and are account-wide. They should not be handed to users or SDK programs.
 
 AXO should continue to issue its own personal access tokens (PATs), store only their hashes, and restrict each PAT to a user, VE, role, and optional expiry. AXO authenticates the PAT, then asks Xolo for the user's current effective access. The lower of the PAT's limit and the user's current role wins.
+# Authorization v2 breaking changes
+
+Authorization v2 is a coordinated breaking release. Deploy the API and
+`xolo-client` together, run `scripts/migrate_authorization.py --dry-run`, resolve
+any reported group-name collisions, and then run the migration without
+`--dry-run` before enabling the new UI.
+
+- Group lifecycle and membership routes moved from
+  `/accounts/{account_id}/acl/groups` and `/acl/service/groups` to
+  `/accounts/{account_id}/groups`. There are no compatibility aliases.
+- Group API keys require the new `groups` scope. Audit readers require the new
+  `audit` scope. ACL and RBAC keys may read `/groups/references` only.
+- Groups are shared principals. Ownership does not imply membership, and a
+  group has no ACL/RBAC type flag.
+- RBAC assignments now always contain `subject_type` (`USER` or `GROUP`). The
+  migration permanently removes pre-v2 untyped assignments after reporting
+  their count.
+- New ABAC policies use `glob_v2`; migrated policies retain `legacy_v1` until
+  explicitly upgraded.
+
+The migration creates timestamped backup collections in the same database,
+records an idempotent completion marker, and creates the required indexes.

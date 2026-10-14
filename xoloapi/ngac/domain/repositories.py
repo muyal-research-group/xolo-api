@@ -47,6 +47,9 @@ class INGACRepository(ABC):
     async def create_association(self, assoc: NGACAssociation) -> Result[str, XoloException]: ...
 
     @abstractmethod
+    async def update_association(self, assoc: NGACAssociation) -> Result[bool, XoloException]: ...
+
+    @abstractmethod
     async def find_association(self, account_id: str, association_id: str) -> Result[Option[NGACAssociation], XoloException]: ...
 
     @abstractmethod

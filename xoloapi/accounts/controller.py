@@ -7,7 +7,7 @@ from xoloapi.log import Log
 import xoloapi.config as Cfg
 from xoloapi.accounts.application.accounts_service import AccountsService
 from xoloapi.accounts.dependencies import get_accounts_service
-from xoloapi.accounts.dto import CreateAccountDTO
+from xoloapi.accounts.dto import CreateAccountDTO, UpdateAccountDTO
 from xoloapi.log.format import build_log_payload
 from xoloapi.middleware.admin import require_admin_or_platform
 from xoloapi.platform_users.domain.value_objects import PlatformPermission
@@ -70,3 +70,16 @@ async def delete_account(
         raise error.to_http_exception()
     log.info(build_log_payload("accounts.delete", started_at=t1, account_id=account_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/{account_id}")
+async def update_account(
+    account_id: str,
+    dto: UpdateAccountDTO,
+    _: object = Depends(require_admin_or_platform(PlatformPermission.ACCOUNTS_MANAGE)),
+    service: AccountsService = Depends(get_accounts_service),
+):
+    result = await service.update_account(account_id, dto)
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    return result.unwrap()

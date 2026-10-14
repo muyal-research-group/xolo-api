@@ -22,9 +22,11 @@ class ParentRoleDTO(BaseModel):
 
 
 class AssignRoleDTO(BaseModel):
-    subject_id:   str
+    subject_id:   Optional[str] = None
+    subject_username: Optional[str] = None
+    user_identifier: Optional[str] = None
     role_id:      str
-    subject_type: Literal["user", "group"] = "user"
+    subject_type: Literal["user", "group", "USER", "GROUP"] = "user"
 
 
 class UnassignRoleDTO(BaseModel):
@@ -33,12 +35,14 @@ class UnassignRoleDTO(BaseModel):
 
 
 class CheckPermissionDTO(BaseModel):
-    subject_id:  str
+    subject_id:  Optional[str] = None
+    user_identifier: Optional[str] = None
     permission:  str
 
 
 class HasRoleCheckDTO(BaseModel):
-    subject_id: str
+    subject_id: Optional[str] = None
+    user_identifier: Optional[str] = None
     role_id:    str
 
 
@@ -56,20 +60,40 @@ class AssignmentDTO(BaseModel):
     assignment_id: str
     subject_id:    str
     role_id:       str
+    subject_type:  str
+    subject_name:  Optional[str] = None
+    role_name:     Optional[str] = None
+    assigned_at:   Optional[object] = None
+    updated_at:    Optional[object] = None
+
+
+class UpdateAssignmentDTO(BaseModel):
+    subject_type: Literal["user", "group", "USER", "GROUP"]
+    user_identifier: Optional[str] = None
+    subject_id: Optional[str] = None
+    role_id: str
 
 
 class CheckResultDTO(BaseModel):
     subject_id:  str
     permission:  str
     has_access:  bool
+    matched_permission: Optional[str] = None
+    resolution_paths: list[list[str]] = []
 
 
 class EffectivePermissionsDTO(BaseModel):
     subject_id:  str
     permissions: list[str]
+    direct_roles: list[str] = []
+    group_roles: dict[str, list[str]] = {}
+    inherited_roles: list[str] = []
+    own_permissions: list[str] = []
+    inherited_permissions: list[str] = []
 
 
 class HasRoleDTO(BaseModel):
     subject_id: str
     role_id:    str
     has_role:   bool
+    resolution_path: list[str] = []

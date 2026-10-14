@@ -6,6 +6,8 @@ from xoloapi.errors.base import XoloException
 
 class IResourcePolicyRepository(ABC):
 
+    async def create(self, policy: ResourcePolicy) -> Result[ResourcePolicy, XoloException]: ...
+
     @abstractmethod
     async def list_all(self, account_id: str) -> Result[list[ResourcePolicy], XoloException]: ...
 

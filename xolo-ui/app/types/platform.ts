@@ -17,6 +17,7 @@ export interface Account {
   account_id: string
   name: string
   is_active: boolean
+  timezone: string
   created_at: string
   updated_at: string
 }

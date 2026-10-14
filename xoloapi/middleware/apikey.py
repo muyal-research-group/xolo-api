@@ -106,6 +106,44 @@ def require_api_key(scope: str)->APIKey:
     return _dependency
 
 
+def require_any_api_key(*scopes: str):
+    """Authorize when at least one of the supplied scopes is available."""
+    async def _dependency(
+        request: Request,
+        x_api_key: str | None = Header(None, alias="X-API-Key"),
+        service: APIKeyService = Depends(_get_apikey_service),
+    ):
+        if request.cookies.get(Cfg.XOLO_PLATFORM_SESSION_COOKIE_NAME):
+            from xoloapi.platform_users.dependencies import authorize_platform_request
+            from xoloapi.platform_users.domain.value_objects import PlatformPermission
+            user = await authorize_platform_request(request)
+            if user.must_change_password:
+                raise HTTPException(status_code=403, detail="Password change required")
+            account_id = request.path_params.get("account_id")
+            permissions = []
+            for scope in scopes:
+                try:
+                    permissions.append(PlatformPermission[f"{scope.upper()}_READ"])
+                except KeyError:
+                    pass
+            if not any(user.can(permission, account_id) for permission in permissions):
+                raise HTTPException(status_code=403, detail="Missing a permitted read scope")
+            return None
+        if not x_api_key:
+            raise HTTPException(status_code=401, detail="X-API-Key or platform session required")
+        last_error = None
+        for scope in scopes:
+            result = await service.validate(x_api_key, scope)
+            if result.is_ok:
+                api_key = result.unwrap()
+                if api_key.account_id != request.path_params.get("account_id"):
+                    raise AccessDeniedError("API key does not belong to the requested account").to_http_exception()
+                return api_key
+            last_error = result.unwrap_err()
+        raise last_error.to_http_exception()
+    return _dependency
+
+
 def require_service_api_key(scope: str):
     """Require an explicitly service-enabled account API key.
 
@@ -186,9 +224,11 @@ def require_admin_or_api_key(scope: str):
                 "licenses": "LICENSES",
                 "users": "USERS",
                 "acl": "ACL",
+                "groups": "GROUPS",
                 "rbac": "RBAC",
                 "abac": "ABAC",
                 "ngac": "NGAC",
+                "audit": "AUDIT",
             }.get(scope)
             if area is None:
                 raise HTTPException(status_code=403, detail="Platform session cannot access this API scope")

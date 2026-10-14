@@ -97,3 +97,29 @@ class NGACGraph:
                 return False, f"Denied by policy class '{pc_name}'"
 
         return True, "Access granted"
+
+    def explain(self, user_id: str, object_id: str, operation: str) -> dict:
+        allowed, reason = self.check(user_id, object_id, operation)
+        op = operation.lower()
+        user_closure = self.upward_closure(user_id)
+        object_closure = self.upward_closure(object_id)
+        pcs = sorted(nid for nid in object_closure if nid in self._nodes and self._nodes[nid].node_type == NodeType.POLICY_CLASS)
+        successful, failed, associations = [], [], []
+        for pc_id in pcs:
+            uas = [nid for nid in user_closure if nid in self._nodes and self._nodes[nid].node_type == NodeType.USER_ATTRIBUTE and pc_id in self.upward_closure(nid)]
+            oas = [nid for nid in object_closure if nid in self._nodes and self._nodes[nid].node_type == NodeType.OBJECT_ATTRIBUTE and pc_id in self.upward_closure(nid)]
+            matches = [{"user_attribute_id": ua, "object_attribute_id": oa, "operation": op} for ua in uas for oa in oas if op in self._assoc.get((ua, oa), ())]
+            pc = {"policy_class_id": pc_id, "policy_class_name": self._nodes[pc_id].name}
+            if matches:
+                successful.append({**pc, "user_nodes": uas, "object_nodes": oas})
+                associations.extend(matches)
+            else:
+                failed.append({**pc, "user_nodes": uas, "object_nodes": oas, "reason": "No matching association operation"})
+        return {
+            "allowed": allowed,
+            "reason": reason,
+            "governing_policy_classes": [{"policy_class_id": pc, "name": self._nodes[pc].name} for pc in pcs],
+            "successful_paths": successful,
+            "failed_classes": failed,
+            "matching_associations": associations,
+        }

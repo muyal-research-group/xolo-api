@@ -1,4 +1,6 @@
 import uuid
+import datetime
+from collections.abc import Awaitable, Callable
 from option import Result, Ok, Err
 
 from xoloapi.groups.domain.aggregates import GroupMember, SecurityGroup
@@ -6,16 +8,46 @@ from xoloapi.groups.domain.repositories import ISecurityGroupRepository
 from xoloapi.errors.base import (
     AccessDeniedError,
     AlreadyExistsError,
+    ConflictError,
     NotFoundError,
     XoloException,
 )
+from xoloapi.users.application.user_resolution import resolve_user_identifier
 
 
 class GroupService:
 
-    def __init__(self, repo: ISecurityGroupRepository, users_repo=None):
+    def __init__(
+        self,
+        repo: ISecurityGroupRepository,
+        users_repo=None,
+        usage_resolver: Callable[[str, str], Awaitable[dict]] | None = None,
+    ):
         self.repo = repo
         self.users_repo = users_repo
+        self.usage_resolver = usage_resolver
+
+    async def _add_members(self, account_id: str, group_id: str, user_ids: list[str]):
+        """Use the transactional repository API, with a test-double fallback."""
+        batch = getattr(self.repo, "add_members_atomic", None)
+        if batch is not None:
+            return await batch(account_id, group_id, user_ids)
+        for user_id in user_ids:
+            result = await self.repo.add_member(account_id, group_id, user_id)
+            if result.is_err:
+                return result
+        return Ok(True)
+
+    async def _remove_members(self, account_id: str, group_id: str, user_ids: list[str]):
+        """Use the transactional repository API, with a test-double fallback."""
+        batch = getattr(self.repo, "remove_members_atomic", None)
+        if batch is not None:
+            return await batch(account_id, group_id, user_ids)
+        for user_id in user_ids:
+            result = await self.repo.remove_member(account_id, group_id, user_id)
+            if result.is_err:
+                return result
+        return Ok(True)
 
     async def list_groups(self, account_id: str) -> Result[list[SecurityGroup], XoloException]:
         return await self.repo.list_all(account_id)
@@ -49,11 +81,11 @@ class GroupService:
         if self.users_repo is None:
             return Err(NotFoundError("User", usernames[0]))
         user_ids: list[str] = []
-        for username in usernames:
-            maybe_user = await self.users_repo.find_by_username(account_id, username.strip())
-            if maybe_user.is_none:
-                return Err(NotFoundError("User", username))
-            user_ids.append(maybe_user.unwrap().key)
+        for identifier in usernames:
+            resolved = await resolve_user_identifier(self.users_repo, account_id, identifier)
+            if resolved.is_err:
+                return Err(resolved.unwrap_err())
+            user_ids.append(resolved.unwrap().user_id)
         return Ok(user_ids)
 
     async def validate_user_ids(self, account_id: str, user_ids: list[str]) -> Result[list[str], XoloException]:
@@ -79,17 +111,22 @@ class GroupService:
     async def create_group(
         self, account_id: str, owner_id: str, name: str, description: str = ""
     ) -> Result[str, XoloException]:
-        exists = await self.repo.find_by_name(account_id, name)
+        display_name, normalized_name = SecurityGroup.normalize_name(name)
+        if not display_name:
+            from xoloapi.errors.base import ValidationError
+            return Err(ValidationError("Group name cannot be empty", "name"))
+        exists = await self.repo.find_by_name(account_id, display_name)
         if exists.is_err:
             return Err(exists.unwrap_err())
         if exists.unwrap().is_some:
             return Err(AlreadyExistsError("SecurityGroup", name))
 
-        group_id = f"g-{name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:8]}"
+        group_id = f"g-{uuid.uuid4().hex}"
         group = SecurityGroup(
             account_id  = account_id,
             group_id    = group_id,
-            name        = name,
+            name        = display_name,
+            normalized_name = normalized_name,
             owner_id    = owner_id,
             description = description or None,
         )
@@ -98,11 +135,75 @@ class GroupService:
         if save.is_err:
             return Err(save.unwrap_err())
 
-        add = await self.repo.add_member(account_id, group_id, owner_id)
-        if add.is_err:
-            return Err(add.unwrap_err())
-
         return Ok(group_id)
+
+    async def create_group_for_username(
+        self, account_id: str, owner_username: str, name: str, description: str = ""
+    ) -> Result[str, XoloException]:
+        resolved = await self.resolve_usernames(account_id, [owner_username])
+        if resolved.is_err:
+            return Err(resolved.unwrap_err())
+        return await self.create_group(account_id, resolved.unwrap()[0], name, description)
+
+    async def update_group(
+        self,
+        account_id: str,
+        group_id: str,
+        caller_id: str,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        is_admin: bool = False,
+    ) -> Result[SecurityGroup, XoloException]:
+        found = await self.repo.find_by_id(account_id, group_id)
+        if found.is_err:
+            return Err(found.unwrap_err())
+        if found.unwrap().is_none:
+            return Err(NotFoundError("SecurityGroup", group_id))
+        group = found.unwrap().unwrap()
+        if not is_admin and not group.is_owned_by(caller_id):
+            return Err(AccessDeniedError("Only the group owner or groups.manage may update the group"))
+        changes: dict = {}
+        if name is not None:
+            display_name, normalized = SecurityGroup.normalize_name(name)
+            if not display_name:
+                from xoloapi.errors.base import ValidationError
+                return Err(ValidationError("Group name cannot be empty", "name"))
+            duplicate = await self.repo.find_by_name(account_id, display_name)
+            if duplicate.is_err:
+                return Err(duplicate.unwrap_err())
+            if duplicate.unwrap().is_some and duplicate.unwrap().unwrap().group_id != group_id:
+                return Err(AlreadyExistsError("SecurityGroup", display_name))
+            changes.update(name=display_name, normalized_name=normalized)
+        if description is not None:
+            changes["description"] = description.strip() or None
+        changes["updated_at"] = datetime.datetime.now(datetime.timezone.utc)
+        saved = await self.repo.save(group.model_copy(update=changes))
+        return Err(saved.unwrap_err()) if saved.is_err else Ok(saved.unwrap())
+
+    async def set_status(
+        self, account_id: str, group_id: str, is_active: bool
+    ) -> Result[SecurityGroup, XoloException]:
+        found = await self.repo.find_by_id(account_id, group_id)
+        if found.is_err:
+            return Err(found.unwrap_err())
+        if found.unwrap().is_none:
+            return Err(NotFoundError("SecurityGroup", group_id))
+        updated = found.unwrap().unwrap().model_copy(update={
+            "is_active": is_active,
+            "updated_at": datetime.datetime.now(datetime.timezone.utc),
+        })
+        saved = await self.repo.save(updated)
+        return Err(saved.unwrap_err()) if saved.is_err else Ok(saved.unwrap())
+
+    async def usage(self, account_id: str, group_id: str) -> Result[dict, XoloException]:
+        if self.usage_resolver is None:
+            return Ok({"acl_grants": [], "rbac_assignments": []})
+        try:
+            return Ok(await self.usage_resolver(account_id, group_id))
+        except Exception as exc:
+            from xoloapi.errors.base import DatabaseError
+            return Err(DatabaseError("Failed to inspect group usage", cause=exc))
 
     async def delete_group(self, account_id: str, caller_id: str, group_id: str) -> Result[bool, XoloException]:
         find = await self.repo.find_by_id(account_id, group_id)
@@ -114,7 +215,11 @@ class GroupService:
         group = find.unwrap().unwrap()
         if not group.is_owned_by(caller_id):
             return Err(AccessDeniedError("Only the group owner can delete this group"))
-
+        usage = await self.usage(account_id, group_id)
+        if usage.is_err:
+            return Err(usage.unwrap_err())
+        if usage.unwrap()["acl_grants"] or usage.unwrap()["rbac_assignments"]:
+            return Err(ConflictError("Group is still referenced", metadata=usage.unwrap()))
         return await self.repo.delete(account_id, group_id)
 
     async def delete_group_admin(self, account_id: str, group_id: str) -> Result[bool, XoloException]:
@@ -123,6 +228,11 @@ class GroupService:
             return Err(find.unwrap_err())
         if find.unwrap().is_none:
             return Err(NotFoundError("SecurityGroup", group_id))
+        usage = await self.usage(account_id, group_id)
+        if usage.is_err:
+            return Err(usage.unwrap_err())
+        if usage.unwrap()["acl_grants"] or usage.unwrap()["rbac_assignments"]:
+            return Err(ConflictError("Group is still referenced", metadata=usage.unwrap()))
         return await self.repo.delete(account_id, group_id)
 
     async def add_members(
@@ -146,11 +256,7 @@ class GroupService:
             return Err(validated.unwrap_err())
         user_ids = list(dict.fromkeys(validated.unwrap() + resolved.unwrap()))
 
-        for user_id in user_ids:
-            r = await self.repo.add_member(account_id, group_id, user_id)
-            if r.is_err:
-                return Err(r.unwrap_err())
-        return Ok(True)
+        return await self._add_members(account_id, group_id, user_ids)
 
     async def add_members_admin(self, account_id: str, group_id: str, user_ids: list[str]) -> Result[bool, XoloException]:
         find = await self.repo.find_by_id(account_id, group_id)
@@ -159,11 +265,7 @@ class GroupService:
         if find.unwrap().is_none:
             return Err(NotFoundError("SecurityGroup", group_id))
 
-        for user_id in user_ids:
-            r = await self.repo.add_member(account_id, group_id, user_id)
-            if r.is_err:
-                return Err(r.unwrap_err())
-        return Ok(True)
+        return await self._add_members(account_id, group_id, user_ids)
 
     async def remove_members(
         self, account_id: str, caller_id: str, group_id: str, user_ids: list[str], usernames: list[str] | None = None
@@ -188,10 +290,7 @@ class GroupService:
                     "Only the group owner can remove other members",
                     metadata={"group_id": group_id, "target_user": user_id},
                 ))
-            r = await self.repo.remove_member(account_id, group_id, user_id)
-            if r.is_err:
-                return Err(r.unwrap_err())
-        return Ok(True)
+        return await self._remove_members(account_id, group_id, user_ids)
 
     async def list_members_authorized(
         self,
@@ -217,11 +316,7 @@ class GroupService:
         if find.unwrap().is_none:
             return Err(NotFoundError("SecurityGroup", group_id))
 
-        for user_id in user_ids:
-            r = await self.repo.remove_member(account_id, group_id, user_id)
-            if r.is_err:
-                return Err(r.unwrap_err())
-        return Ok(True)
+        return await self._remove_members(account_id, group_id, user_ids)
 
     async def transfer_owner_admin(
         self,
@@ -237,20 +332,35 @@ class GroupService:
             return Err(NotFoundError("SecurityGroup", group_id))
 
         group = find.unwrap().unwrap()
-        previous_owner_id = group.owner_id
-        add = await self.repo.add_member(account_id, group_id, new_owner_id)
-        if add.is_err:
-            return Err(add.unwrap_err())
-
-        # Remove first: if saving the new owner fails, the previous owner still
-        # owns the group and therefore retains effective membership. Retrying is
-        # safe because member removal is idempotent.
-        if not keep_previous_as_member and previous_owner_id != new_owner_id:
-            removed = await self.repo.remove_member(account_id, group_id, previous_owner_id)
-            if removed.is_err:
-                return Err(removed.unwrap_err())
-
-        saved = await self.repo.save(group.model_copy(update={"owner_id": new_owner_id}))
+        # Ownership and membership are deliberately independent. The legacy
+        # keep_previous_as_member argument is ignored by the shared API.
+        validated = await self.validate_user_ids(account_id, [new_owner_id])
+        if validated.is_err:
+            return Err(validated.unwrap_err())
+        saved = await self.repo.save(group.model_copy(update={
+            "owner_id": new_owner_id,
+            "updated_at": datetime.datetime.now(datetime.timezone.utc),
+        }))
         if saved.is_err:
             return Err(saved.unwrap_err())
         return Ok(True)
+
+    async def transfer_owner(
+        self,
+        account_id: str,
+        group_id: str,
+        caller_id: str,
+        owner_username: str,
+        is_admin: bool = False,
+    ) -> Result[bool, XoloException]:
+        found = await self.repo.find_by_id(account_id, group_id)
+        if found.is_err:
+            return Err(found.unwrap_err())
+        if found.unwrap().is_none:
+            return Err(NotFoundError("SecurityGroup", group_id))
+        if not is_admin and not found.unwrap().unwrap().is_owned_by(caller_id):
+            return Err(AccessDeniedError("Only the current owner or groups.manage may transfer ownership"))
+        resolved = await self.resolve_usernames(account_id, [owner_username])
+        if resolved.is_err:
+            return Err(resolved.unwrap_err())
+        return await self.transfer_owner_admin(account_id, group_id, resolved.unwrap()[0], True)

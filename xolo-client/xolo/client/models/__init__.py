@@ -21,6 +21,7 @@ class IdResultDTO(XoloDTO):
 
 WILDCARD = "*"
 MAX_RADIUS_KM = 5.0
+MIN_RADIUS_KM = 0.1
 
 
 class TimeWindowMode(str, Enum):
@@ -43,14 +44,19 @@ class GeoZoneDTO(XoloDTO):
     @field_validator("radius_km")
     @classmethod
     def _cap_radius(cls, v: float) -> float:
-        if v <= 0 or v > MAX_RADIUS_KM:
-            raise ValueError(f"radius_km must be between 0 and {MAX_RADIUS_KM}")
+        if v < MIN_RADIUS_KM or v > MAX_RADIUS_KM:
+            raise ValueError(f"radius_km must be between {MIN_RADIUS_KM} and {MAX_RADIUS_KM}")
         return v
 
 
 class Effect(str, Enum):
     ALLOW = "ALLOW"
     DENY = "DENY"
+
+
+class MatcherVersion(str, Enum):
+    LEGACY_V1 = "legacy_v1"
+    GLOB_V2 = "glob_v2"
 
 
 class NodeType(str, Enum):
@@ -64,9 +70,11 @@ class NodeType(str, Enum):
 class APIKeyScope(str, Enum):
     USERS = "users"
     ACL = "acl"
+    GROUPS = "groups"
     RBAC = "rbac"
     ABAC = "abac"
     NGAC = "ngac"
+    AUDIT = "audit"
     SCOPES = "scopes"
     LICENSES = "licenses"
     SERVICE = "service"
@@ -117,6 +125,13 @@ class AuthDTO(XoloDTO):
 class CreateAccountDTO(XoloDTO):
     account_id: str
     name: str
+    timezone: str = "UTC"
+
+
+class UpdateAccountDTO(XoloDTO):
+    name: Optional[str] = None
+    timezone: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class DeleteLicenseDTO(XoloDTO):
@@ -167,6 +182,7 @@ class AssignScopeDTO(XoloDTO):
 class CreateGroupDTO(XoloDTO):
     name: str
     description: Optional[str] = ""
+    owner_username: str
 
 
 class MembersDTO(XoloDTO):
@@ -174,9 +190,46 @@ class MembersDTO(XoloDTO):
     usernames: List[str] = Field(default_factory=list)
 
 
+class GroupReferenceDTO(XoloDTO):
+    group_id: str
+    name: str
+    is_active: bool
+
+
+class UserReferenceDTO(XoloDTO):
+    user_id: str
+    username: str
+    match_type: str
+
+
+class GroupDTO(GroupReferenceDTO):
+    description: Optional[str] = None
+    owner_id: str
+    owner_username: Optional[str] = None
+    member_count: int = 0
+    acl_usage_count: int = 0
+    rbac_usage_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class GroupPageDTO(XoloDTO):
+    items: List[GroupDTO]
+    total_count: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class GroupUsageDTO(XoloDTO):
+    acl_grants: List[Dict] = Field(default_factory=list)
+    rbac_assignments: List[Dict] = Field(default_factory=list)
+
+
 class GrantOrRevokeDTO(XoloDTO):
     principal_id: Optional[str] = None
     principal_username: Optional[str] = None
+    principal_identifier: Optional[str] = None
     principal_type: Optional[str] = None
     resource_id: str
     permissions: List[str]
@@ -199,7 +252,8 @@ class ServiceCreateGroupDTO(XoloDTO):
 
 
 class TransferResourceOwnerDTO(XoloDTO):
-    principal_id: str
+    principal_id: Optional[str] = None
+    owner_identifier: Optional[str] = None
     principal_type: str = "USER"
     keep_previous_permissions: Optional[List[str]] = None
 
@@ -218,6 +272,7 @@ class CheckDTO(XoloDTO):
 
 
 class CreateABACEventDTO(XoloDTO):
+    event_id: Optional[str] = None
     subject:    str
     resource:   str
     location:   Optional[GeoZoneDTO] = None
@@ -231,6 +286,7 @@ class CreateABACPolicyDTO(XoloDTO):
     name: str
     effect: Effect = Effect.ALLOW
     events: List[CreateABACEventDTO]
+    timezone: Optional[str] = None
 
 
 class ABACEvaluateDTO(XoloDTO):
@@ -245,6 +301,9 @@ class CreateNodeDTO(XoloDTO):
     name: str
     node_type: NodeType
     properties: dict[str, str] = Field(default_factory=dict)
+    user_id: Optional[str] = None
+    user_identifier: Optional[str] = None
+    resource_id: Optional[str] = None
 
 
 class AssignDTO(XoloDTO):
@@ -280,6 +339,7 @@ class AccountDTO(XoloDTO):
     account_id: str
     name: Optional[str] = None
     created_at: Optional[datetime] = None
+    timezone: str = "UTC"
 
 
 class CreatedScopeResponseDTO(XoloDTO):
@@ -385,8 +445,13 @@ class ResourceGrantDTO(XoloDTO):
     grant_id: str
     principal_id: str
     principal_type: str
+    principal_name: Optional[str] = None
     permissions: Set[str] = Field(default_factory=set)
     is_owner: bool
+
+
+class UpdateACLGrantDTO(XoloDTO):
+    permissions: List[str] = Field(min_length=1)
 
 
 class ResourceGrantsDTO(XoloDTO):
@@ -394,8 +459,30 @@ class ResourceGrantsDTO(XoloDTO):
     grants: List[ResourceGrantDTO] = Field(default_factory=list)
 
 
+class ACLPolicyPageDTO(XoloDTO):
+    items: List[ResourceGrantsDTO] = Field(default_factory=list)
+    total_count: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class ACLEffectiveAccessDTO(XoloDTO):
+    username: str
+    user_id: str
+    resource_id: str
+    direct_permissions: Set[str] = Field(default_factory=set)
+    group_permissions: Dict[str, Set[str]] = Field(default_factory=dict)
+    ignored_disabled_groups: List[str] = Field(default_factory=list)
+    is_owner: bool
+    effective_permissions: Set[str] = Field(default_factory=set)
+    allowed: bool
+    denial_reason: Optional[str] = None
+
+
 class GroupMemberDTO(XoloDTO):
     user_id: str
+    username: Optional[str] = None
     joined_at: datetime
 
 
@@ -420,6 +507,9 @@ class ABACPolicyDTO(XoloDTO):
     effect: str
     events: List[ABACEventRecordDTO] = Field(default_factory=list)
     created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    matcher_version: MatcherVersion = MatcherVersion.LEGACY_V1
+    timezone: str = "UTC"
 
 
 class ABACDecisionDTO(XoloDTO):
@@ -427,6 +517,10 @@ class ABACDecisionDTO(XoloDTO):
     matched_policy: Optional[str] = None
     matched_event: Optional[str] = None
     reason: str
+    matched_policy_ids: List[str] = Field(default_factory=list)
+    matched_event_ids: List[str] = Field(default_factory=list)
+    request_context: Dict = Field(default_factory=dict)
+    warnings: List[str] = Field(default_factory=list)
 
 
 class NGACNodeDTO(XoloDTO):
@@ -435,6 +529,11 @@ class NGACNodeDTO(XoloDTO):
     name: str
     properties: dict[str, str] = Field(default_factory=dict)
     created_at: Optional[str] = None
+    user_id: Optional[str] = None
+    username: Optional[str] = None
+    updated_at: Optional[str] = None
+    resource_id: Optional[str] = None
+    owner_id: str = ""
 
 
 class NGACAssignmentDTO(XoloDTO):
@@ -442,6 +541,7 @@ class NGACAssignmentDTO(XoloDTO):
     from_id: str
     to_id: str
     created_at: Optional[str] = None
+    owner_id: str = ""
 
 
 class NGACAssociationDTO(XoloDTO):
@@ -450,6 +550,18 @@ class NGACAssociationDTO(XoloDTO):
     object_attribute_id: str
     operations: List[str] = Field(default_factory=list)
     created_at: Optional[str] = None
+    owner_id: str = ""
+
+
+class NGACGraphDTO(XoloDTO):
+    nodes: List[Dict] = Field(default_factory=list)
+    assignments: List[Dict] = Field(default_factory=list)
+    associations: List[Dict] = Field(default_factory=list)
+
+
+class NGACDeletionImpactDTO(XoloDTO):
+    assignments: List[Dict] = Field(default_factory=list)
+    associations: List[Dict] = Field(default_factory=list)
 
 
 class NGACDecisionDTO(XoloDTO):
@@ -458,6 +570,10 @@ class NGACDecisionDTO(XoloDTO):
     user_id: str
     object_id: str
     operation: str
+    governing_policy_classes: List[Dict] = Field(default_factory=list)
+    successful_paths: List[Dict] = Field(default_factory=list)
+    failed_classes: List[Dict] = Field(default_factory=list)
+    matching_associations: List[Dict] = Field(default_factory=list)
 
 
 # Client-local response DTOs for 204 / id-only endpoints
@@ -642,7 +758,9 @@ class ParentRoleDTO(XoloDTO):
 
 
 class AssignRoleDTO(XoloDTO):
-    subject_id: str
+    subject_id: Optional[str] = None
+    subject_username: Optional[str] = None
+    user_identifier: Optional[str] = None
     role_id: str
     subject_type: str = "user"
 
@@ -653,7 +771,8 @@ class UnassignRoleDTO(XoloDTO):
 
 
 class CheckPermissionDTO(XoloDTO):
-    subject_id: str
+    subject_id: Optional[str] = None
+    user_identifier: Optional[str] = None
     permission: str
 
 
@@ -669,17 +788,64 @@ class AssignmentDTO(XoloDTO):
     assignment_id: str
     subject_id: str
     role_id: str
+    subject_type: str
+    subject_name: Optional[str] = None
+    role_name: Optional[str] = None
+    assigned_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class UpdateAssignmentDTO(XoloDTO):
+    subject_type: str
+    role_id: str
+    user_identifier: Optional[str] = None
+    subject_id: Optional[str] = None
+
+
+class TimezoneCatalogDTO(XoloDTO):
+    default: str
+    timezones: List[str]
+
+
+class NotificationDTO(XoloDTO):
+    notification_id: str
+    category: str
+    severity: str
+    account_id: str
+    model: str
+    actor_type: str
+    actor_id: str
+    affected_principal: Optional[str] = None
+    action: str
+    target: str
+    safe_detail: Dict = Field(default_factory=dict)
+    link_target: Optional[str] = None
+    timestamp: datetime
+    expires_at: datetime
+    is_read: bool = False
+
+
+class NotificationPageDTO(XoloDTO):
+    items: List[NotificationDTO] = Field(default_factory=list)
+    next_cursor: Optional[str] = None
 
 
 class CheckResultDTO(XoloDTO):
     subject_id: str
     permission: str
     has_access: bool
+    matched_permission: Optional[str] = None
+    resolution_paths: List[List[str]] = Field(default_factory=list)
 
 
 class EffectivePermissionsDTO(XoloDTO):
     subject_id: str
     permissions: List[str] = Field(default_factory=list)
+    direct_roles: List[str] = Field(default_factory=list)
+    group_roles: Dict[str, List[str]] = Field(default_factory=dict)
+    inherited_roles: List[str] = Field(default_factory=list)
+    own_permissions: List[str] = Field(default_factory=list)
+    inherited_permissions: List[str] = Field(default_factory=list)
 
 
 RBACPermissionDTO = PermissionDTO
@@ -691,6 +857,26 @@ class HasRoleDTO(XoloDTO):
     subject_id: str
     role_id: str
     has_role: bool
+    resolution_path: List[str] = Field(default_factory=list)
+
+
+class AuthorizationAuditEventDTO(XoloDTO):
+    event_id: str
+    timestamp: datetime
+    account_id: str
+    model: str
+    actor_type: str
+    actor_id: str
+    action: str
+    target: str
+    before: object | None = None
+    after: object | None = None
+    correlation_id: str
+
+
+class AuthorizationAuditPageDTO(XoloDTO):
+    items: List[AuthorizationAuditEventDTO]
+    next_cursor: Optional[str] = None
 
 
 class DeletedRoleResponseDTO(OperationResultDTO):

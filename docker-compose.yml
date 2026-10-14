@@ -53,6 +53,24 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  xolo-db-init:
+    image: mongo:${XOLO_MONGO_IMAGE_TAG:-8-noble}
+    depends_on:
+      xolo-db:
+        condition: service_healthy
+    command:
+      - sh
+      - -ec
+      - |
+        mongosh --host xolo-db:27017 --quiet --eval '
+          try { rs.status() }
+          catch (error) { rs.initiate({_id: "xolo-rs", members: [{_id: 0, host: "xolo-db:27017"}]}) }
+          while (!db.hello().isWritablePrimary) { sleep(500) }
+        '
+    networks:
+      - xolo-net
+    restart: "no"
+
   xolo:
     build:
       context: .
@@ -82,6 +100,8 @@ services:
     depends_on:
       xolo-db:
         condition: service_healthy
+      xolo-db-init:
+        condition: service_completed_successfully
       xolo-cache:
         condition: service_healthy
     healthcheck:

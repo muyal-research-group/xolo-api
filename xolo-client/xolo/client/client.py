@@ -208,7 +208,9 @@ class XoloClient(object):
         except Exception as e:
             return Err(E.XoloError.from_exception(e))
 
-    def create_account(self, account_id: str, name: str, admin_token: str = "") -> Result[M.AccountDTO, E.XoloError]:
+    def create_account(
+        self, account_id: str, name: str, timezone: str = "UTC", admin_token: str = ""
+    ) -> Result[M.AccountDTO, E.XoloError]:
         """Create an account.
 
         Args:
@@ -220,7 +222,7 @@ class XoloClient(object):
             A ``Result`` containing the created account DTO.
         """
         try:
-            payload = M.CreateAccountDTO(account_id=account_id, name=name)
+            payload = M.CreateAccountDTO(account_id=account_id, name=name, timezone=timezone)
             response = self._request(
                 "POST",
                 self._global_url("accounts"),
@@ -229,6 +231,30 @@ class XoloClient(object):
             )
             data = self._response_json(response) or payload.model_dump()
             return Ok(M.AccountDTO.model_validate(data))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def update_account(
+        self,
+        account_id: str,
+        *,
+        name: Optional[str] = None,
+        timezone: Optional[str] = None,
+        is_active: Optional[bool] = None,
+        admin_token: str = "",
+    ) -> Result[M.AccountDTO, E.XoloError]:
+        """Update account metadata, including its default IANA timezone."""
+        try:
+            payload = M.UpdateAccountDTO(name=name, timezone=timezone, is_active=is_active)
+            response = self._request(
+                "PATCH",
+                self._global_url(f"accounts/{account_id}"),
+                headers=self._admin_headers(admin_token, required=True),
+                json=payload.model_dump(exclude_none=True),
+            )
+            return Ok(M.AccountDTO.model_validate(self._response_json(response)))
         except R.exceptions.HTTPError as http_err:
             return Err(self.__process_exception(http_err))
         except Exception as e:
@@ -1167,15 +1193,17 @@ class XoloClient(object):
     def create_group(
         self,
         name: str,
+        owner_username: str,
         description: str,
         token: str,
         temporal_secret: str,
         api_key: str = "",
         admin_token: str = "",
-    ) -> Result[M.CreatedGroupResponseDTO, E.XoloError]:
-        """Create an ACL group.
+    ) -> Result[M.GroupDTO, E.XoloError]:
+        """Create a first-class shared security group.
 
         Args:
+            owner_username: Tenant username that administratively owns the group.
             name: Group name.
             description: Group description.
             token: Bearer access token.
@@ -1187,14 +1215,14 @@ class XoloClient(object):
             A ``Result`` containing the created-group DTO.
         """
         try:
-            payload = M.CreateGroupDTO(name=name, description=description)
+            payload = M.CreateGroupDTO(name=name, description=description, owner_username=owner_username)
             response = self._request(
                 "POST",
-                self._account_url("acl/groups"),
+                self._account_url("groups"),
                 headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
                 json=payload.model_dump(),
             )
-            return Ok(M.CreatedGroupResponseDTO.model_validate(self._response_json(response)))
+            return Ok(M.GroupDTO.model_validate(self._response_json(response)))
         except R.exceptions.HTTPError as http_err:
             return Err(self.__process_exception(http_err))
         except Exception as e:
@@ -1223,7 +1251,7 @@ class XoloClient(object):
         try:
             self._request(
                 "DELETE",
-                self._account_url(f"acl/groups/{group_id}"),
+                self._account_url(f"groups/{group_id}"),
                 headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
             )
             return Ok(M.DeletedGroupResponseDTO(group_id=group_id))
@@ -1258,11 +1286,188 @@ class XoloClient(object):
             payload = M.MembersDTO(members=members)
             self._request(
                 "POST",
-                self._account_url(f"acl/groups/{group_id}/members"),
+                self._account_url(f"groups/{group_id}/members"),
                 headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
-                json=payload.model_dump(),
+                json={"usernames": members},
             )
             return Ok(M.GroupMembersUpdateResponseDTO(group_id=group_id, members=members))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def list_groups(
+        self, token: str, temporal_secret: str, search: str = "", page: int = 1,
+        page_size: int = 25, api_key: str = "", admin_token: str = "",
+    ) -> Result[M.GroupPageDTO, E.XoloError]:
+        try:
+            response = self._request(
+                "GET", self._account_url("groups"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                params={"search": search, "page": page, "page_size": page_size},
+            )
+            return Ok(M.GroupPageDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def get_group(self, group_id: str, token: str, temporal_secret: str, api_key: str = "", admin_token: str = "") -> Result[M.GroupDTO, E.XoloError]:
+        try:
+            response = self._request(
+                "GET", self._account_url(f"groups/{group_id}"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+            )
+            return Ok(M.GroupDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def list_group_references(self, api_key: str = "") -> Result[List[M.GroupReferenceDTO], E.XoloError]:
+        try:
+            response = self._request("GET", self._account_url("groups/references"), headers=self._api_key_headers(api_key, required=True))
+            return Ok([M.GroupReferenceDTO.model_validate(item) for item in self._list_json(response)])
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def transfer_group_owner(self, group_id: str, owner_username: str, token: str, temporal_secret: str, api_key: str = "", admin_token: str = "") -> Result[M.OperationResultDTO, E.XoloError]:
+        try:
+            self._request(
+                "POST", self._account_url(f"groups/{group_id}/owner"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                json={"owner_username": owner_username},
+            )
+            return Ok(M.OperationResultDTO())
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def set_group_status(self, group_id: str, is_active: bool, token: str, temporal_secret: str, api_key: str = "", admin_token: str = "") -> Result[M.GroupDTO, E.XoloError]:
+        try:
+            response = self._request(
+                "POST", self._account_url(f"groups/{group_id}/status"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                json={"is_active": is_active},
+            )
+            return Ok(M.GroupDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def get_group_usage(self, group_id: str, token: str, temporal_secret: str, api_key: str = "", admin_token: str = "") -> Result[M.GroupUsageDTO, E.XoloError]:
+        try:
+            response = self._request(
+                "GET", self._account_url(f"groups/{group_id}/usage"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+            )
+            return Ok(M.GroupUsageDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def list_acl_policies(
+        self, token: str, temporal_secret: str, search: str = "", page: int = 1,
+        page_size: int = 25, api_key: str = "", admin_token: str = "",
+    ) -> Result[M.ACLPolicyPageDTO, E.XoloError]:
+        """List the complete account resource-policy inventory."""
+        try:
+            response = self._request(
+                "GET", self._account_url("acl/policies"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                params={"search": search, "page": page, "page_size": page_size},
+            )
+            return Ok(M.ACLPolicyPageDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def inspect_acl_effective_access(
+        self, resource_id: str, username: str, token: str, temporal_secret: str,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[M.ACLEffectiveAccessDTO, E.XoloError]:
+        """Explain direct, active-group, ignored-group, and owner ACL access."""
+        try:
+            response = self._request(
+                "GET", self._account_url(f"acl/resources/{resource_id}/effective-access/{username}"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+            )
+            return Ok(M.ACLEffectiveAccessDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def get_acl_deletion_impact(
+        self, resource_id: str, token: str, temporal_secret: str,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[Dict, E.XoloError]:
+        try:
+            response = self._request(
+                "GET", self._account_url(f"acl/resources/{resource_id}/deletion-impact"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+            )
+            return Ok(self._response_json(response))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def transfer_acl_resource_owner(
+        self, resource_id: str, principal_id: str, token: str, temporal_secret: str,
+        principal_type: str = "USER", keep_previous_permissions: Optional[List[str]] = None,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[M.OperationResultDTO, E.XoloError]:
+        try:
+            payload = M.TransferResourceOwnerDTO(
+                principal_id=principal_id, principal_type=principal_type,
+                keep_previous_permissions=keep_previous_permissions,
+            )
+            self._request(
+                "POST", self._account_url(f"acl/resources/{resource_id}/owner"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                json=payload.model_dump(exclude_none=True),
+            )
+            return Ok(M.OperationResultDTO(ok=True))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def delete_acl_resource_policy(
+        self, resource_id: str, confirmation: str, token: str, temporal_secret: str,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[M.OperationResultDTO, E.XoloError]:
+        try:
+            self._request(
+                "DELETE", self._account_url(f"acl/resources/{resource_id}/policy"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                json={"confirm_resource_id": confirmation},
+            )
+            return Ok(M.OperationResultDTO(ok=True))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def list_group_members(
+        self, group_id: str, token: str, temporal_secret: str, search: str = "",
+        page: int = 1, page_size: int = 25, api_key: str = "", admin_token: str = "",
+    ) -> Result[M.PaginatedDTO[M.GroupMemberDTO], E.XoloError]:
+        """List resolved members of a shared security group."""
+        try:
+            response = self._request(
+                "GET", self._account_url(f"groups/{group_id}/members"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                params={"search": search, "page": page, "page_size": page_size},
+            )
+            return Ok(M.PaginatedDTO[M.GroupMemberDTO].model_validate(self._response_json(response)))
         except R.exceptions.HTTPError as http_err:
             return Err(self.__process_exception(http_err))
         except Exception as e:
@@ -1294,9 +1499,9 @@ class XoloClient(object):
             payload = M.MembersDTO(members=members)
             self._request(
                 "DELETE",
-                self._account_url(f"acl/groups/{group_id}/members"),
+                self._account_url(f"groups/{group_id}/members"),
                 headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
-                json=payload.model_dump(),
+                json={"usernames": members},
             )
             return Ok(M.GroupMembersUpdateResponseDTO(group_id=group_id, members=members))
         except R.exceptions.HTTPError as http_err:
@@ -1644,129 +1849,6 @@ class XoloClient(object):
         except Exception as e:
             return Err(E.XoloError.from_exception(e))
 
-    def service_create_group(
-        self,
-        name: str,
-        owner_id: str,
-        description: str = "",
-        api_key: str = "",
-    ) -> Result[M.CreatedGroupResponseDTO, E.XoloError]:
-        """Create an ACL group for a specified owner."""
-        try:
-            payload = M.ServiceCreateGroupDTO(name=name, owner_id=owner_id, description=description)
-            response = self._request(
-                "POST",
-                self._account_url("acl/service/groups"),
-                headers=self._api_key_headers(api_key, required=True),
-                json=payload.model_dump(),
-            )
-            return Ok(M.CreatedGroupResponseDTO.model_validate(self._response_json(response)))
-        except R.exceptions.HTTPError as http_err:
-            return Err(self.__process_exception(http_err))
-        except Exception as e:
-            return Err(E.XoloError.from_exception(e))
-
-    def service_add_group_members(
-        self,
-        group_id: str,
-        members: List[str],
-        api_key: str = "",
-    ) -> Result[M.GroupMembersUpdateResponseDTO, E.XoloError]:
-        """Add group members using a service-scoped key."""
-        try:
-            self._request(
-                "POST",
-                self._account_url(f"acl/service/groups/{group_id}/members"),
-                headers=self._api_key_headers(api_key, required=True),
-                json=M.MembersDTO(members=members).model_dump(),
-            )
-            return Ok(M.GroupMembersUpdateResponseDTO(group_id=group_id, members=members))
-        except R.exceptions.HTTPError as http_err:
-            return Err(self.__process_exception(http_err))
-        except Exception as e:
-            return Err(E.XoloError.from_exception(e))
-
-    def service_remove_group_members(
-        self,
-        group_id: str,
-        members: List[str],
-        api_key: str = "",
-    ) -> Result[M.GroupMembersUpdateResponseDTO, E.XoloError]:
-        """Remove group members using a service-scoped key."""
-        try:
-            self._request(
-                "DELETE",
-                self._account_url(f"acl/service/groups/{group_id}/members"),
-                headers=self._api_key_headers(api_key, required=True),
-                json=M.MembersDTO(members=members).model_dump(),
-            )
-            return Ok(M.GroupMembersUpdateResponseDTO(group_id=group_id, members=members))
-        except R.exceptions.HTTPError as http_err:
-            return Err(self.__process_exception(http_err))
-        except Exception as e:
-            return Err(E.XoloError.from_exception(e))
-
-    def service_list_group_members(
-        self,
-        group_id: str,
-        api_key: str = "",
-    ) -> Result[List[M.GroupMemberDTO], E.XoloError]:
-        """List group members using a service-scoped key."""
-        try:
-            response = self._request(
-                "GET",
-                self._account_url(f"acl/service/groups/{group_id}/members"),
-                headers=self._api_key_headers(api_key, required=True),
-            )
-            return Ok([M.GroupMemberDTO.model_validate(item) for item in self._list_json(response)])
-        except R.exceptions.HTTPError as http_err:
-            return Err(self.__process_exception(http_err))
-        except Exception as e:
-            return Err(E.XoloError.from_exception(e))
-
-    def service_transfer_group_owner(
-        self,
-        group_id: str,
-        user_id: str,
-        keep_previous_as_member: bool = True,
-        api_key: str = "",
-    ) -> Result[M.OperationResultDTO, E.XoloError]:
-        """Transfer group ownership using a service-scoped key."""
-        try:
-            payload = M.TransferGroupOwnerDTO(
-                user_id=user_id,
-                keep_previous_as_member=keep_previous_as_member,
-            )
-            self._request(
-                "POST",
-                self._account_url(f"acl/service/groups/{group_id}/owner"),
-                headers=self._api_key_headers(api_key, required=True),
-                json=payload.model_dump(),
-            )
-            return Ok(M.OperationResultDTO(ok=True))
-        except R.exceptions.HTTPError as http_err:
-            return Err(self.__process_exception(http_err))
-        except Exception as e:
-            return Err(E.XoloError.from_exception(e))
-
-    def service_delete_group(
-        self,
-        group_id: str,
-        api_key: str = "",
-    ) -> Result[M.DeletedGroupResponseDTO, E.XoloError]:
-        """Delete a group using a service-scoped key."""
-        try:
-            self._request(
-                "DELETE",
-                self._account_url(f"acl/service/groups/{group_id}"),
-                headers=self._api_key_headers(api_key, required=True),
-            )
-            return Ok(M.DeletedGroupResponseDTO(group_id=group_id))
-        except R.exceptions.HTTPError as http_err:
-            return Err(self.__process_exception(http_err))
-        except Exception as e:
-            return Err(E.XoloError.from_exception(e))
-
     def check_permission_auth(
         self,
         resource_id: str,
@@ -1864,19 +1946,30 @@ class XoloClient(object):
             A ``Result`` containing the group membership DTO.
         """
         try:
-            response = self._request(
-                "GET",
-                self._account_url(f"acl/groups/{group_id}/members/{user_id}"),
-                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
-            )
-            return Ok(M.GroupMembershipResponseDTO.model_validate(self._response_json(response)))
+            page = 1
+            is_member = False
+            while True:
+                response = self._request(
+                    "GET",
+                    self._account_url(f"groups/{group_id}/members"),
+                    headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                    params={"page": page, "page_size": 100},
+                )
+                payload = self._response_json(response)
+                if any(item.get("user_id") == user_id for item in payload.get("items", [])):
+                    is_member = True
+                    break
+                if page >= payload.get("total_pages", 0):
+                    break
+                page += 1
+            return Ok(M.GroupMembershipResponseDTO(group_id=group_id, user_id=user_id, is_member=is_member))
         except R.exceptions.HTTPError as http_err:
             return Err(self.__process_exception(http_err))
         except Exception as e:
             return Err(E.XoloError.from_exception(e))
 
     def list_acl_groups_discovery(self, api_key: str = "") -> Result[List[Dict], E.XoloError]:
-        """List ACL groups for discovery/autocomplete (id+name pairs).
+        """List shared groups for ACL discovery/autocomplete.
 
         Args:
             api_key: Optional API-key override.
@@ -1887,7 +1980,7 @@ class XoloClient(object):
         try:
             response = self._request(
                 "GET",
-                self._account_url("acl/groups/list"),
+                self._account_url("groups/references"),
                 headers=self._api_key_headers(api_key, required=True),
             )
             return Ok(self._list_json(response))
@@ -2064,6 +2157,7 @@ class XoloClient(object):
         events: List[Dict],
         token: str,
         temporal_secret: str,
+        timezone: Optional[str] = None,
         api_key: str = "",
         admin_token: str = "",
     ) -> Result[M.CreatedABACPolicyResponseDTO, E.XoloError]:
@@ -2082,12 +2176,12 @@ class XoloClient(object):
             A ``Result`` containing the created-policy DTO.
         """
         try:
-            payload = M.CreateABACPolicyDTO(name=name, effect=effect, events=events)
+            payload = M.CreateABACPolicyDTO(name=name, effect=effect, events=events, timezone=timezone)
             response = self._request(
                 "POST",
                 self._account_url("abac/policies"),
                 headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
-                json=payload.model_dump(),
+                json=payload.model_dump(exclude_none=True),
             )
             return Ok(M.CreatedABACPolicyResponseDTO.model_validate(self._response_json(response)))
         except R.exceptions.HTTPError as http_err:
@@ -2237,6 +2331,21 @@ class XoloClient(object):
         except Exception as e:
             return Err(E.XoloError.from_exception(e))
 
+    def upgrade_abac_matcher(
+        self, policy_id: str, token: str, temporal_secret: str,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[M.ABACPolicyDTO, E.XoloError]:
+        try:
+            response = self._request(
+                "POST", self._account_url(f"abac/policies/{policy_id}/upgrade-matcher"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+            )
+            return Ok(M.ABACPolicyDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
     def list_abac_policies_discovery(self, api_key: str = "") -> Result[List[Dict], E.XoloError]:
         """List ABAC policies for discovery/autocomplete (id+name pairs).
 
@@ -2328,6 +2437,9 @@ class XoloClient(object):
         token: str,
         temporal_secret: str,
         properties: Optional[Dict] = None,
+        user_id: Optional[str] = None,
+        user_identifier: Optional[str] = None,
+        resource_id: Optional[str] = None,
         api_key: str = "",
         admin_token: str = "",
     ) -> Result[M.CreatedNGACNodeResponseDTO, E.XoloError]:
@@ -2346,12 +2458,15 @@ class XoloClient(object):
             A ``Result`` containing the created-node DTO.
         """
         try:
-            payload = M.CreateNGACNodeDTO(name=name, node_type=node_type, properties=properties or {})
+            payload = M.CreateNGACNodeDTO(
+                name=name, node_type=node_type, properties=properties or {},
+                user_id=user_id, user_identifier=user_identifier, resource_id=resource_id,
+            )
             response = self._request(
                 "POST",
                 self._account_url("ngac/nodes"),
                 headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
-                json=payload.model_dump(),
+                json=payload.model_dump(exclude_none=True),
             )
             return Ok(M.CreatedNGACNodeResponseDTO.model_validate(self._response_json(response)))
         except R.exceptions.HTTPError as http_err:
@@ -2417,6 +2532,34 @@ class XoloClient(object):
                 "GET",
                 self._account_url(f"ngac/nodes/{node_id}"),
                 headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+            )
+            return Ok(M.NGACNodeDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def update_ngac_node(
+        self, node_id: str, token: str, temporal_secret: str, *,
+        name: Optional[str] = None, properties: Optional[Dict] = None,
+        user_id: Optional[str] = None, user_identifier: Optional[str] = None,
+        resource_id: Optional[str] = None, unbind_user: bool = False,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[M.NGACNodeDTO, E.XoloError]:
+        """Update an NGAC node and its optional first-class binding."""
+        try:
+            payload = {
+                key: value for key, value in {
+                    "name": name, "properties": properties,
+                    "user_id": user_id, "user_identifier": user_identifier, "resource_id": resource_id,
+                }.items() if value is not None
+            }
+            if unbind_user:
+                payload["user_identifier"] = None
+            response = self._request(
+                "PATCH", self._account_url(f"ngac/nodes/{node_id}"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                json=payload,
             )
             return Ok(M.NGACNodeDTO.model_validate(self._response_json(response)))
         except R.exceptions.HTTPError as http_err:
@@ -2701,6 +2844,52 @@ class XoloClient(object):
                 json=payload.model_dump(),
             )
             return Ok(M.NGACDecisionDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def get_ngac_graph(
+        self, token: str, temporal_secret: str, api_key: str = "", admin_token: str = "",
+    ) -> Result[M.NGACGraphDTO, E.XoloError]:
+        """Return the resolved graph with node and relationship names."""
+        try:
+            response = self._request(
+                "GET", self._account_url("ngac/graph"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+            )
+            return Ok(M.NGACGraphDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def get_ngac_node_deletion_impact(
+        self, node_id: str, token: str, temporal_secret: str,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[M.NGACDeletionImpactDTO, E.XoloError]:
+        try:
+            response = self._request(
+                "GET", self._account_url(f"ngac/nodes/{node_id}/deletion-impact"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+            )
+            return Ok(M.NGACDeletionImpactDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def update_ngac_association(
+        self, association_id: str, operations: List[str], token: str, temporal_secret: str,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[M.NGACAssociationDTO, E.XoloError]:
+        try:
+            response = self._request(
+                "PATCH", self._account_url(f"ngac/associations/{association_id}"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                json={"operations": operations},
+            )
+            return Ok(M.NGACAssociationDTO.model_validate(self._response_json(response)))
         except R.exceptions.HTTPError as http_err:
             return Err(self.__process_exception(http_err))
         except Exception as e:
@@ -3090,6 +3279,7 @@ class XoloClient(object):
         token: str,
         temporal_secret: str,
         subject_type: str = "user",
+        subject_username: Optional[str] = None,
         api_key: str = "",
         admin_token: str = "",
     ) -> Result[M.AssignmentDTO, E.XoloError]:
@@ -3108,7 +3298,10 @@ class XoloClient(object):
             A ``Result`` containing the assignment DTO.
         """
         try:
-            payload = M.AssignRoleDTO(subject_id=subject_id, role_id=role_id, subject_type=subject_type)
+            payload = M.AssignRoleDTO(
+                subject_id=subject_id, subject_username=subject_username,
+                role_id=role_id, subject_type=subject_type,
+            )
             response = self._request(
                 "POST",
                 self._account_url("rbac/assignments"),
@@ -3329,6 +3522,243 @@ class XoloClient(object):
                 headers=self._api_key_headers(api_key, required=True),
             )
             return Ok(self._list_json(response))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def list_role_assignments(
+        self, token: str, temporal_secret: str, subject_type: Optional[str] = None,
+        subject_id: Optional[str] = None, role_id: Optional[str] = None,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[List[M.AssignmentDTO], E.XoloError]:
+        try:
+            params = {key: value for key, value in {
+                "subject_type": subject_type, "subject_id": subject_id, "role_id": role_id,
+            }.items() if value is not None}
+            response = self._request(
+                "GET", self._account_url("rbac/assignments"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                params=params,
+            )
+            return Ok([M.AssignmentDTO.model_validate(item) for item in self._list_json(response)])
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def delete_role_assignment(
+        self, assignment_id: str, token: str, temporal_secret: str,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[M.OperationResultDTO, E.XoloError]:
+        try:
+            self._request(
+                "DELETE", self._account_url(f"rbac/assignments/{assignment_id}"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+            )
+            return Ok(M.OperationResultDTO())
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def query_authorization_audit(
+        self, api_key: str = "", cursor: Optional[str] = None, limit: int = 50,
+        models: Optional[List[str]] = None, action: Optional[str] = None,
+        actor: Optional[str] = None, target: Optional[str] = None,
+    ) -> Result[M.AuthorizationAuditPageDTO, E.XoloError]:
+        try:
+            params: list[tuple[str, object]] = [("limit", limit)]
+            if cursor:
+                params.append(("cursor", cursor))
+            for model in models or []:
+                params.append(("model", model))
+            for key, value in (("action", action), ("actor", actor), ("target", target)):
+                if value:
+                    params.append((key, value))
+            response = self._request(
+                "GET", self._account_url("authorization/audit"),
+                headers=self._api_key_headers(api_key, required=True), params=params,
+            )
+            return Ok(M.AuthorizationAuditPageDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def search_user_references(self, search: str, limit: int = 3, api_key: str = "") -> Result[List[M.UserReferenceDTO], E.XoloError]:
+        """Search account users using the shared ranked autocomplete contract."""
+        try:
+            response = self._request(
+                "GET", self._account_url("users/references"),
+                headers=self._api_key_headers(api_key, required=True),
+                params={"search": search, "limit": limit},
+            )
+            return Ok([M.UserReferenceDTO.model_validate(item) for item in self._list_json(response)])
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def create_acl_resource(
+        self, resource_id: str, owner_type: str, owner_identifier: str,
+        token: str, temporal_secret: str, api_key: str = "", admin_token: str = "",
+    ) -> Result[M.ResourceGrantsDTO, E.XoloError]:
+        try:
+            response = self._request(
+                "POST", self._account_url("acl/resources"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                json={"resource_id": resource_id, "owner_type": owner_type, "owner_identifier": owner_identifier},
+            )
+            return Ok(M.ResourceGrantsDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def revoke_acl_grant(
+        self, resource_id: str, grant_id: str, token: str, temporal_secret: str,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[M.OperationResultDTO, E.XoloError]:
+        try:
+            self._request(
+                "DELETE", self._account_url(f"acl/resources/{resource_id}/grants/{grant_id}"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+            )
+            return Ok(M.OperationResultDTO())
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def update_acl_grant(
+        self, resource_id: str, grant_id: str, permissions: List[str],
+        token: str, temporal_secret: str, api_key: str = "", admin_token: str = "",
+    ) -> Result[M.ResourceGrantDTO, E.XoloError]:
+        """Replace the permission set of an existing non-owner ACL grant."""
+        try:
+            payload = M.UpdateACLGrantDTO(permissions=permissions)
+            response = self._request(
+                "PATCH", self._account_url(f"acl/resources/{resource_id}/grants/{grant_id}"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                json=payload.model_dump(mode="json"),
+            )
+            return Ok(M.ResourceGrantDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def list_abac_timezones(self, token: str, temporal_secret: str, api_key: str = "", admin_token: str = "") -> Result[M.TimezoneCatalogDTO, E.XoloError]:
+        try:
+            response = self._request(
+                "GET", self._account_url("abac/timezones"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+            )
+            return Ok(M.TimezoneCatalogDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def update_role_assignment(
+        self, assignment_id: str, role_id: str, subject_type: str,
+        token: str, temporal_secret: str, user_identifier: Optional[str] = None,
+        subject_id: Optional[str] = None, api_key: str = "", admin_token: str = "",
+    ) -> Result[M.AssignmentDTO, E.XoloError]:
+        try:
+            payload = M.UpdateAssignmentDTO(
+                role_id=role_id, subject_type=subject_type,
+                user_identifier=user_identifier, subject_id=subject_id,
+            )
+            response = self._request(
+                "PATCH", self._account_url(f"rbac/assignments/{assignment_id}"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                json=payload.model_dump(exclude_none=True),
+            )
+            return Ok(M.AssignmentDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    @staticmethod
+    def _platform_headers(platform_session: str, csrf_token: str = "") -> Dict[str, str]:
+        headers = {"Cookie": f"xolo_platform_session={platform_session}"}
+        if csrf_token:
+            headers["X-CSRF-Token"] = csrf_token
+            headers["Cookie"] += f"; xolo_platform_csrf={csrf_token}"
+        return headers
+
+    def list_notifications(
+        self, platform_session: str, *, categories: Optional[List[str]] = None,
+        unread_only: bool = False, cursor: Optional[str] = None, limit: int = 30,
+    ) -> Result[M.NotificationPageDTO, E.XoloError]:
+        try:
+            params: list[tuple[str, object]] = [("limit", limit), ("unread_only", unread_only)]
+            if cursor: params.append(("cursor", cursor))
+            for category in categories or []: params.append(("category", category))
+            response = self._request("GET", self._account_url("notifications"), headers=self._platform_headers(platform_session), params=params)
+            return Ok(M.NotificationPageDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def get_notification_unread_count(self, platform_session: str) -> Result[int, E.XoloError]:
+        try:
+            response = self._request("GET", self._account_url("notifications/unread-count"), headers=self._platform_headers(platform_session))
+            return Ok(int(self._response_json(response)["count"]))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def mark_notification_read(self, notification_id: str, platform_session: str, csrf_token: str) -> Result[M.OperationResultDTO, E.XoloError]:
+        try:
+            self._request("POST", self._account_url(f"notifications/{notification_id}/read"), headers=self._platform_headers(platform_session, csrf_token))
+            return Ok(M.OperationResultDTO())
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def mark_all_notifications_read(self, platform_session: str, csrf_token: str) -> Result[M.OperationResultDTO, E.XoloError]:
+        try:
+            self._request("POST", self._account_url("notifications/read-all"), headers=self._platform_headers(platform_session, csrf_token))
+            return Ok(M.OperationResultDTO())
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def assign_role_to_identifier(
+        self, user_identifier: str, role_id: str, token: str, temporal_secret: str,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[M.AssignmentDTO, E.XoloError]:
+        try:
+            response = self._request(
+                "POST", self._account_url("rbac/assignments"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                json={"user_identifier": user_identifier, "role_id": role_id, "subject_type": "USER"},
+            )
+            return Ok(M.AssignmentDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def get_effective_permissions_for_identifier(
+        self, user_identifier: str, token: str, temporal_secret: str,
+        api_key: str = "", admin_token: str = "",
+    ) -> Result[M.EffectivePermissionsDTO, E.XoloError]:
+        try:
+            response = self._request(
+                "GET", self._account_url("rbac/effective"),
+                headers=self._authz_headers(token, temporal_secret, api_key=api_key, admin_token=admin_token),
+                params={"user_identifier": user_identifier},
+            )
+            return Ok(M.EffectivePermissionsDTO.model_validate(self._response_json(response)))
         except R.exceptions.HTTPError as http_err:
             return Err(self.__process_exception(http_err))
         except Exception as e:

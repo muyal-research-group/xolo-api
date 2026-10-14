@@ -97,3 +97,17 @@ app = FastAPI(
 ```
 
 API routes respect the configured `root_path`. Set `NUXT_PUBLIC_API_BASE` (or `XOLO_UI_API_BASE` in Compose) to the externally reachable API prefix used by the browser.
+# MongoDB transaction requirement
+
+Authorization v2 uses MongoDB transactions for atomic group membership
+batches. MongoDB must run as a replica set in every environment, including a
+single-node replica set for development. The provided Compose configuration
+starts `xolo-rs` and waits for a writable primary before starting the API.
+
+For an existing deployment, restart MongoDB with a replica-set name, initiate
+the set, confirm `db.hello().isWritablePrimary`, and only then run:
+
+```bash
+poetry run python scripts/migrate_authorization.py --dry-run
+poetry run python scripts/migrate_authorization.py
+```

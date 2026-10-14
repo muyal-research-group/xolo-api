@@ -4,6 +4,7 @@ import type { Account } from '~/types/platform'
 const props = defineProps<{ selected: string | null; canManage: boolean }>()
 const emit = defineEmits<{ select: [accountId: string]; changed: [] }>()
 const { api } = useXoloApi()
+const { requestConfirmation } = useConfirmationDialog()
 const accounts = ref<Account[]>([])
 const loading = ref(false)
 const error = ref('')
@@ -26,7 +27,12 @@ async function create() {
 }
 
 async function remove(account: Account) {
-  if (!confirm(`Delete account ${account.account_id}?`)) return
+  const confirmed = await requestConfirmation({
+    title: 'Delete account?',
+    message: `Permanently delete ${account.name} (${account.account_id}) and its account-scoped data?`,
+    confirmText: 'Delete account',
+  })
+  if (!confirmed) return
   await api(`/accounts/${encodeURIComponent(account.account_id)}`, { method: 'DELETE' })
   await load(); emit('changed')
 }
@@ -40,7 +46,7 @@ onMounted(load)
       <div><h1 class="text-h4 xolo-title">Accounts</h1><p class="text-medium-emphasis">Choose the tenant you want to manage.</p></div>
       <v-spacer /><v-btn v-if="canManage" color="primary" prepend-icon="mdi-plus" @click="dialog = true">New account</v-btn>
     </div>
-    <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ error }}</v-alert>
+    <v-alert v-if="error" type="error" variant="tonal" class="mb-4" @click:close="error = ''">{{ error }}</v-alert>
     <v-row><v-col v-for="account in accounts" :key="account.account_id" cols="12" md="6" lg="4">
       <v-card class="xolo-card" :color="selected === account.account_id ? 'primary' : undefined" :variant="selected === account.account_id ? 'tonal' : 'flat'">
         <v-card-title>{{ account.name }}</v-card-title><v-card-subtitle class="xolo-mono">{{ account.account_id }}</v-card-subtitle>

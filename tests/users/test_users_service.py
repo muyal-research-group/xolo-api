@@ -481,9 +481,10 @@ async def test_delete_user_cascades_acl_groups_and_ngac(users_service_full, user
     await ngac_repo.create_node(ngac_node)
 
     deleted = await users_service_full.delete_user(ACCOUNT_ID, "alice")
-    assert deleted.is_ok
+    assert deleted.is_err
+    assert deleted.unwrap_err().metadata["group_ids"] == ["g-alice"]
 
-    assert (await users_service_full.list_users(ACCOUNT_ID)).unwrap() == []
-    assert (await acl_repo.list_all(ACCOUNT_ID)).unwrap() == []
-    assert (await groups_repo.list_all(ACCOUNT_ID)).unwrap() == []
-    assert (await ngac_repo.list_nodes(ACCOUNT_ID)).unwrap() == []
+    assert len((await users_service_full.list_users(ACCOUNT_ID)).unwrap()) == 1
+    assert len((await acl_repo.list_all(ACCOUNT_ID)).unwrap()) == 1
+    assert len((await groups_repo.list_all(ACCOUNT_ID)).unwrap()) == 1
+    assert len((await ngac_repo.list_nodes(ACCOUNT_ID)).unwrap()) == 1

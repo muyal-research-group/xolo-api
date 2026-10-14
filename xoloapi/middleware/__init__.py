@@ -82,9 +82,11 @@ async def __get_current_user(
 
 
 async def get_current_user(
+    request: Request,
     current_user: Annotated[DTO.UserDTO, Depends(__get_current_user)]
 ):
     if current_user.disabled:
         log.warning(build_log_payload("middleware.current_user.inactive", user_id=current_user.key, username=current_user.username))
         raise EX.InactiveUserError(user_id=str(current_user.key)).to_http_exception()
+    request.state.current_user = current_user
     return current_user

@@ -56,6 +56,18 @@ class MongoAccountsRepository:
             log.error(build_log_payload("accounts.repository.find_all.error", error=exc))
             return Err(DatabaseError("Failed to list accounts", cause=exc))
 
+    async def update(self, account: Account) -> Result[Account, XoloException]:
+        try:
+            result = await self.collection.replace_one(
+                {"account_id": account.account_id}, account.model_dump()
+            )
+            if result.matched_count == 0:
+                return Err(NotFoundError("Account", account.account_id))
+            return Ok(account)
+        except Exception as exc:
+            log.error(build_log_payload("accounts.repository.update.error", error=exc, account_id=account.account_id))
+            return Err(DatabaseError(f"Failed to update account '{account.account_id}'", cause=exc))
+
     async def delete(self, account_id: str) -> Result[bool, XoloException]:
         try:
             result = await self.collection.delete_one({"account_id": account_id})

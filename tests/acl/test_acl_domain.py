@@ -49,3 +49,35 @@ def test_transferring_owner_can_retain_limited_access_for_previous_owner():
     assert transferred.effective_permissions([replacement.id]) == set(Permission)
     assert transferred.is_owned_by_any([replacement.id]) is True
 
+
+def test_update_grant_permissions_replaces_permissions_and_preserves_grant_identity():
+    owner = Principal(type=PrincipalType.USER, id="owner-1")
+    reader = Principal(type=PrincipalType.USER, id="reader-1")
+    policy = ResourcePolicy(account_id="acc-1", resource_id="ve:1").claim_principal(owner).unwrap()
+    policy = policy.grant(reader, {Permission.READ}, [owner.id]).unwrap()
+    original = next(grant for grant in policy.grants if grant.principal == reader)
+
+    updated = policy.update_grant_permissions(
+        original.grant_id,
+        {Permission.WRITE, Permission.UPDATE},
+        [owner.id],
+    ).unwrap()
+    changed = next(grant for grant in updated.grants if grant.principal == reader)
+
+    assert changed.grant_id == original.grant_id
+    assert changed.principal == original.principal
+    assert changed.permissions == {Permission.WRITE, Permission.UPDATE}
+
+
+def test_update_grant_permissions_rejects_owner_grant_and_unauthorized_caller():
+    owner = Principal(type=PrincipalType.USER, id="owner-1")
+    reader = Principal(type=PrincipalType.USER, id="reader-1")
+    policy = ResourcePolicy(account_id="acc-1", resource_id="ve:1").claim_principal(owner).unwrap()
+    policy = policy.grant(reader, {Permission.READ}, [owner.id]).unwrap()
+    owner_grant = next(grant for grant in policy.grants if grant.is_owner)
+    reader_grant = next(grant for grant in policy.grants if grant.principal == reader)
+
+    assert policy.update_grant_permissions(owner_grant.grant_id, {Permission.READ}, [owner.id]).is_err
+    assert policy.update_grant_permissions(reader_grant.grant_id, {Permission.WRITE}, ["stranger"]).is_err
+    assert policy.update_grant_permissions(reader_grant.grant_id, set(), [owner.id]).is_err
+

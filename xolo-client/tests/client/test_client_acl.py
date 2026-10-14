@@ -108,26 +108,26 @@ def test_acl_methods_return_expected_dtos(
     group = unwrap_ok(
         protected_client.create_group(
             name=rand_name("group"),
+            owner_username=owner.username,
             description="client-acl-group",
             token=owner.auth.access_token,
             temporal_secret=owner.auth.temporal_secret,
         ),
-        M.CreatedGroupResponseDTO,
+        M.GroupDTO,
     )
-    assert group.ok is True
     assert group.group_id
 
     added_members = unwrap_ok(
         protected_client.add_members_to_group(
             group_id=group.group_id,
-            members=[guest.user_key],
+            members=[guest.username],
             token=owner.auth.access_token,
             temporal_secret=owner.auth.temporal_secret,
         ),
         M.GroupMembersUpdateResponseDTO,
     )
     assert added_members.group_id == group.group_id
-    assert added_members.members == [guest.user_key]
+    assert added_members.members == [guest.username]
 
     is_member = unwrap_ok(
         protected_client.check_group_membership(
@@ -181,14 +181,14 @@ def test_acl_methods_return_expected_dtos(
     removed_members = unwrap_ok(
         protected_client.remove_members_from_group(
             group_id=group.group_id,
-            members=[guest.user_key],
+            members=[guest.username],
             token=owner.auth.access_token,
             temporal_secret=owner.auth.temporal_secret,
         ),
         M.GroupMembersUpdateResponseDTO,
     )
     assert removed_members.group_id == group.group_id
-    assert removed_members.members == [guest.user_key]
+    assert removed_members.members == [guest.username]
 
     not_member = unwrap_ok(
         protected_client.check_group_membership(
@@ -211,6 +211,24 @@ def test_acl_methods_return_expected_dtos(
         M.CheckPermissionResponseDTO,
     )
     assert denied_after_member_removal.has_permission is False
+
+    blocked_delete = protected_client.delete_group(
+        group_id=group.group_id,
+        token=owner.auth.access_token,
+        temporal_secret=owner.auth.temporal_secret,
+    )
+    assert blocked_delete.is_err
+
+    unwrap_ok(
+        protected_client.revoke_permission(
+            resource_id=group_resource_id,
+            principal_id=group.group_id,
+            permissions=["read"],
+            token=owner.auth.access_token,
+            temporal_secret=owner.auth.temporal_secret,
+        ),
+        M.PermissionUpdateResponseDTO,
+    )
 
     deleted_group = unwrap_ok(
         protected_client.delete_group(

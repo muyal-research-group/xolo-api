@@ -69,6 +69,7 @@ def get_users_service(cache=Depends(get_cache_redis), users_mailer=Depends(get_u
     from xoloapi.acl.infrastructure.mongo_resource_policy_repository import MongoResourcePolicyRepository
     from xoloapi.groups.infrastructure.mongo_security_group_repository import MongoSecurityGroupRepository
     from xoloapi.ngac.infrastructure.mongo_ngac_repository import MongoNGACRepository
+    from xoloapi.rbac.infrastructure.mongo_role_assignment_repository import MongoRoleAssignmentRepository
 
     users_collection = get_collection(CollectionNames.USERS_COLLECTION_NAME)
     users_repository = MongoUsersRepository(collection=users_collection, cache_redis=cache)
@@ -96,13 +97,16 @@ def get_users_service(cache=Depends(get_cache_redis), users_mailer=Depends(get_u
         ),
         groups_repository=MongoSecurityGroupRepository(
             db=db,
-            groups_col=CollectionNames.ACL_GROUPS_COLLECTION_NAME,
-            members_col=CollectionNames.ACL_GROUP_MEMBERS_COLLECTION_NAME,
+            groups_col=CollectionNames.SECURITY_GROUPS_COLLECTION_NAME,
+            members_col=CollectionNames.GROUP_MEMBERS_COLLECTION_NAME,
         ),
         ngac_repository=MongoNGACRepository(
             db=db,
             nodes_col=CollectionNames.NGAC_NODES_COLLECTION_NAME,
             assignments_col=CollectionNames.NGAC_ASSIGNMENTS_COLLECTION_NAME,
             associations_col=CollectionNames.NGAC_ASSOCIATIONS_COLLECTION_NAME,
+        ),
+        rbac_assignment_repository=MongoRoleAssignmentRepository(
+            db=db, collection_name=CollectionNames.RBAC_ASSIGNMENTS_COLLECTION_NAME,
         ),
     )

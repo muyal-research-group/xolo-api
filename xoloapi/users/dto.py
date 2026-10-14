@@ -31,6 +31,12 @@ class RefreshTokenDTO(BaseModel):
     expiration: str = "15min"
 
 
+class UserReferenceDTO(BaseModel):
+    user_id: str
+    username: str
+    match_type: str
+
+
 __all__ = [
     "AuthDTO",
     "AuthenticatedDTO",
@@ -46,5 +52,6 @@ __all__ = [
     "UpdateUserPasswordDTO",
     "UpdateUserPasswordResponseDTO",
     "UserDTO",
+    "UserReferenceDTO",
     "VerifyDTO",
 ]

@@ -43,6 +43,7 @@ class UsersService:
         acl_repository: Any = None,
         groups_repository: Any = None,
         ngac_repository: Any = None,
+        rbac_assignment_repository: Any = None,
     ):
         self.repository = repository
         self.scopes_repository = scopes_repository
@@ -52,6 +53,7 @@ class UsersService:
         self.acl_repository = acl_repository
         self.groups_repository = groups_repository
         self.ngac_repository = ngac_repository
+        self.rbac_assignment_repository = rbac_assignment_repository
 
     @staticmethod
     def _hash_reset_token(token: str) -> str:
@@ -295,6 +297,16 @@ class UsersService:
                 return Err(error)
 
             user = maybe_user.unwrap()
+            if self.groups_repository is not None:
+                owned = await self.groups_repository.find_owned_by_user(account_id, user.key)
+                if owned.is_err:
+                    return Err(owned.unwrap_err())
+                if owned.unwrap():
+                    from xoloapi.errors.base import ConflictError
+                    return Err(ConflictError(
+                        "User owns groups that must be transferred before deletion",
+                        metadata={"group_ids": [group.group_id for group in owned.unwrap()]},
+                    ))
             licenses_result = await self.licenses_service.repository.delete_all_by_username(account_id=account_id, username=normalized_username)
             if licenses_result.is_err:
                 log.error(build_log_payload("users.delete.error", started_at=start_time, error=licenses_result.unwrap_err(), username=normalized_username, user_id=user.key))
@@ -332,6 +344,11 @@ class UsersService:
                 if ngac_result.is_err:
                     log.error(build_log_payload("users.delete.error", started_at=start_time, error=ngac_result.unwrap_err(), username=normalized_username, user_id=user.key))
                     return Err(ngac_result.unwrap_err())
+
+            if self.rbac_assignment_repository is not None:
+                rbac_result = await self.rbac_assignment_repository.delete_by_subject(account_id, user.key)
+                if rbac_result.is_err:
+                    return Err(rbac_result.unwrap_err())
 
             delete_result = await self.repository.delete_by_id(user_id=user.key, account_id=account_id)
             if delete_result.is_err:

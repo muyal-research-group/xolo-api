@@ -1,3 +1,5 @@
+import datetime
+
 from nanoid import generate
 from option import Result, Ok, Err
 
@@ -5,7 +7,7 @@ from xoloapi.errors.base import XoloException, NotFoundError
 from xoloapi.abac.domain.aggregates import ABACAccessRequest, ABACDecision, ABACEvent, ABACPolicy
 from xoloapi.abac.domain.repositories import IABACRepository
 from xoloapi.abac.domain.services import ABACEvaluator
-from xoloapi.abac.domain.value_objects import Effect
+from xoloapi.abac.domain.value_objects import Effect, MatcherVersion
 
 
 class ABACService:
@@ -14,7 +16,7 @@ class ABACService:
         self._repo      = repository
         self._evaluator = ABACEvaluator()
 
-    async def create_policy(self, account_id: str, name: str, effect: Effect, events: list[ABACEvent]) -> Result[str, XoloException]:
+    async def create_policy(self, account_id: str, name: str, effect: Effect, events: list[ABACEvent], timezone: str = "UTC") -> Result[str, XoloException]:
         policy_id = f"ap-{generate(size=10)}"
         policy = ABACPolicy(
             account_id = account_id,
@@ -22,6 +24,8 @@ class ABACService:
             name       = name,
             effect     = effect,
             events     = events,
+            matcher_version = MatcherVersion.GLOB_V2,
+            timezone = timezone,
         )
         return await self._repo.save(policy, raw_events=[])
 
@@ -37,7 +41,7 @@ class ABACService:
     async def list_policies(self, account_id: str) -> Result[list[ABACPolicy], XoloException]:
         return await self._repo.find_all(account_id)
 
-    async def update_policy(self, account_id: str, policy_id: str, name: str, effect: Effect, events: list[ABACEvent]) -> Result[str, XoloException]:
+    async def update_policy(self, account_id: str, policy_id: str, name: str, effect: Effect, events: list[ABACEvent], timezone: str | None = None) -> Result[str, XoloException]:
         existing = await self.get_policy(account_id, policy_id)
         if existing.is_err:
             return Err(existing.unwrap_err())
@@ -48,8 +52,19 @@ class ABACService:
             name       = name,
             effect     = effect,
             events     = events,
+            matcher_version = existing.unwrap().matcher_version,
+            timezone = timezone or existing.unwrap().timezone,
+            created_at = existing.unwrap().created_at,
+            updated_at = datetime.datetime.now(datetime.timezone.utc),
         )
         return await self._repo.save(updated, raw_events=[])
+
+    async def upgrade_matcher(self, account_id: str, policy_id: str) -> Result[str, XoloException]:
+        existing = await self.get_policy(account_id, policy_id)
+        if existing.is_err:
+            return Err(existing.unwrap_err())
+        policy = existing.unwrap().model_copy(update={"matcher_version": MatcherVersion.GLOB_V2})
+        return await self._repo.save(policy, raw_events=[])
 
     async def delete_policy(self, account_id: str, policy_id: str) -> Result[bool, XoloException]:
         return await self._repo.delete(account_id, policy_id)

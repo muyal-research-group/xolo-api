@@ -1,7 +1,7 @@
 import time as T
 from typing import Annotated
 
-from fastapi import Depends, Header, Response, status
+from fastapi import Depends, Header, Query, Response, status
 from fastapi.routing import APIRouter
 from xoloapi.log import Log
 
@@ -11,8 +11,9 @@ import xoloapi.config as Cfg
 import xoloapi.middleware as MX
 from xoloapi.accounts.dependencies import require_existing_account
 from xoloapi.log.format import build_log_payload
+from xoloapi.errors.base import ValidationError
 from xoloapi.middleware.admin import require_admin_or_platform
-from xoloapi.middleware.apikey import require_api_key, require_service_api_key
+from xoloapi.middleware.apikey import require_api_key, require_any_api_key, require_service_api_key
 from xoloapi.platform_users.domain.value_objects import PlatformPermission
 from xoloapi.users.application.users_service import UsersService
 from xoloapi.users.dependencies import get_users_service
@@ -61,6 +62,24 @@ async def list_users(
     error = response.unwrap_err()
     log.error(build_log_payload("users.list.error", started_at=t1, error=error))
     raise error.to_http_exception()
+
+
+@router.get("/references", response_model=list[DTO.UserReferenceDTO])
+async def user_references(
+    account_id: str,
+    search: str = Query(..., min_length=1),
+    limit: int = Query(3, ge=1, le=20),
+    _: object = Depends(require_any_api_key("users", "groups", "acl", "rbac", "ngac")),
+    users_service: UsersService = Depends(get_users_service),
+):
+    """Search minimal tenant-user references for operator autocomplete."""
+    if not search.strip():
+        raise ValidationError("search must contain at least one character").to_http_exception()
+    matches = await users_service.repository.search_references(account_id, search, limit)
+    return [
+        DTO.UserReferenceDTO(user_id=user.key, username=user.username, match_type=match_type)
+        for user, match_type in matches
+    ]
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)

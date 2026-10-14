@@ -213,10 +213,10 @@ async def test_evaluate_with_time_window(abac_client: AsyncClient):
     })
 
     inside = await abac_client.post(_account_path("/evaluate"), json={
-        "subject": "Doctor", "resource": "Chart", "action": "read", "time": "2026-06-15T12:00"
+        "subject": "Doctor", "resource": "Chart", "action": "read", "time": "2026-06-15T12:00Z"
     })
     outside = await abac_client.post(_account_path("/evaluate"), json={
-        "subject": "Doctor", "resource": "Chart", "action": "read", "time": "2027-01-01T20:00"
+        "subject": "Doctor", "resource": "Chart", "action": "read", "time": "2027-01-01T20:00Z"
     })
 
     assert inside.json()["allowed"] is True

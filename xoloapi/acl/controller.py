@@ -1,5 +1,6 @@
 import time as T
-from fastapi import APIRouter, Depends, Query, Response, status
+import math
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from xoloapi.log import Log
 
 import xoloapi.config as Cfg
@@ -17,6 +18,8 @@ from xoloapi.acl.dto import (
     EffectiveAccessDTO, ResourceGrantDTO, ResourceGrantsDTO,
     ServiceClaimResourceDTO, ServiceCreateGroupDTO, ServiceResourceDetailDTO,
     ServiceUserResourcesDTO, TransferGroupOwnerDTO, TransferResourceOwnerDTO,
+    DeleteResourcePolicyDTO, ACLEffectiveAccessDTO, CreateResourceDTO,
+    UpdateResourceGrantDTO,
 )
 from xoloapi.acl.infrastructure.mongo_resource_policy_repository import MongoResourcePolicyRepository
 from xoloapi.groups.infrastructure.mongo_security_group_repository import MongoSecurityGroupRepository
@@ -46,8 +49,8 @@ router = APIRouter(
 def _group_repo() -> MongoSecurityGroupRepository:
     return MongoSecurityGroupRepository(
         db          = DbX.get_database(),
-        groups_col  = CollectionNames.ACL_GROUPS_COLLECTION_NAME,
-        members_col = CollectionNames.ACL_GROUP_MEMBERS_COLLECTION_NAME,
+        groups_col  = CollectionNames.SECURITY_GROUPS_COLLECTION_NAME,
+        members_col = CollectionNames.GROUP_MEMBERS_COLLECTION_NAME,
     )
 
 def _policy_repo() -> MongoResourcePolicyRepository:
@@ -94,6 +97,20 @@ async def _resource_grants_dto(account_id: str, policy, service: ACLService) -> 
 
 
 # ── Resources ─────────────────────────────────────────────────────────────────
+
+@router.post("/resources", status_code=status.HTTP_201_CREATED, response_model=ResourceGrantsDTO)
+async def create_resource(
+    account_id: str,
+    dto: CreateResourceDTO,
+    _: object = Depends(require_api_key("acl")),
+    service: ACLService = Depends(get_acl_service),
+):
+    result = await service.create_resource(
+        account_id, dto.resource_id, dto.owner_type, dto.owner_identifier
+    )
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    return await _resource_grants_dto(account_id, result.unwrap(), service)
 
 @router.get("/resources", status_code=status.HTTP_200_OK)
 async def get_resources(
@@ -185,6 +202,183 @@ async def list_resource_grants(
     return await _resource_grants_dto(account_id, result.unwrap(), service)
 
 
+@router.get("/policies")
+async def list_resource_policy_inventory(
+    account_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    search: str = "",
+    _: object = Depends(require_api_key("acl")),
+    service: ACLService = Depends(get_acl_service),
+):
+    result = await service.list_policies(account_id)
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    needle = search.casefold().strip()
+    policies = [p for p in result.unwrap() if not needle or needle in p.resource_id.casefold()]
+    total = len(policies)
+    items = []
+    for policy in policies[(page - 1) * page_size:page * page_size]:
+        items.append((await _resource_grants_dto(account_id, policy, service)).model_dump())
+    return {"items": items, "total_count": total, "page": page, "page_size": page_size, "total_pages": math.ceil(total / page_size) if total else 0}
+
+
+@router.get("/resources/{resource_id}/deletion-impact")
+async def resource_deletion_impact(
+    account_id: str,
+    resource_id: str,
+    _: object = Depends(require_api_key("acl")),
+    service: ACLService = Depends(get_acl_service),
+):
+    result = await service.get_policy(account_id, resource_id)
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    policy = result.unwrap()
+    return {"resource_id": resource_id, "grant_count": len(policy.grants), "grants": (await _resource_grants_dto(account_id, policy, service)).grants, "required_confirmation": resource_id}
+
+
+@router.post("/resources/{resource_id}/owner", status_code=status.HTTP_204_NO_CONTENT)
+async def transfer_resource_owner(
+    account_id: str,
+    resource_id: str,
+    dto: TransferResourceOwnerDTO,
+    _: object = Depends(require_api_key("acl")),
+    me: DTO.UserDTO = Depends(MX.get_current_user),
+    service: ACLService = Depends(get_acl_service),
+):
+    authorized = await service.get_policy_for_caller(account_id, resource_id, me.key, Cfg.is_superadmin(me))
+    if authorized.is_err:
+        raise authorized.unwrap_err().to_http_exception()
+    principal = await service.resolve_principal(
+        account_id, dto.principal_type, dto.principal_id,
+        principal_identifier=dto.owner_identifier,
+    )
+    if principal.is_err:
+        raise principal.unwrap_err().to_http_exception()
+    result = await service.transfer_owner(account_id, resource_id, principal.unwrap().id, dto.principal_type, dto.keep_previous_permissions)
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/resources/{resource_id}/policy", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_resource_policy(
+    account_id: str,
+    resource_id: str,
+    dto: DeleteResourcePolicyDTO,
+    _: object = Depends(require_api_key("acl")),
+    me: DTO.UserDTO = Depends(MX.get_current_user),
+    service: ACLService = Depends(get_acl_service),
+):
+    if dto.confirm_resource_id != resource_id:
+        from xoloapi.errors.base import ValidationError
+        raise ValidationError("Typed confirmation must exactly match resource_id", "confirm_resource_id").to_http_exception()
+    result = await service.delete_resource(account_id, resource_id, me.key, Cfg.is_superadmin(me))
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/resources/{resource_id}/grants/{grant_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_resource_grant(
+    account_id: str,
+    resource_id: str,
+    grant_id: str,
+    _: object = Depends(require_api_key("acl")),
+    me: DTO.UserDTO = Depends(MX.get_current_user),
+    service: ACLService = Depends(get_acl_service),
+):
+    result = await service.revoke_grant(
+        account_id, resource_id, grant_id, me.key, Cfg.is_superadmin(me)
+    )
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/resources/{resource_id}/grants/{grant_id}", response_model=ResourceGrantDTO)
+async def update_resource_grant(
+    request: Request,
+    account_id: str,
+    resource_id: str,
+    grant_id: str,
+    dto: UpdateResourceGrantDTO,
+    _: object = Depends(require_api_key("acl")),
+    me: DTO.UserDTO = Depends(MX.get_current_user),
+    service: ACLService = Depends(get_acl_service),
+):
+    policy_result = await service.get_policy(account_id, resource_id)
+    if policy_result.is_err:
+        raise policy_result.unwrap_err().to_http_exception()
+    previous = next(
+        (grant for grant in policy_result.unwrap().grants if grant.grant_id == grant_id),
+        None,
+    )
+    if previous is not None:
+        request.state.authorization_audit_before = previous.model_dump(mode="json")
+
+    result = await service.update_grant_permissions(
+        account_id=account_id,
+        resource_id=resource_id,
+        grant_id=grant_id,
+        permissions=[permission.value for permission in dto.permissions],
+        caller_id=me.key,
+        is_admin=Cfg.is_superadmin(me),
+    )
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    grant = result.unwrap()
+    request.state.authorization_audit_after = grant.model_dump(mode="json")
+    return ResourceGrantDTO(
+        grant_id=grant.grant_id,
+        principal_id=grant.principal.id,
+        principal_type=grant.principal.type.value,
+        principal_name=await service.principal_name(account_id, grant.principal),
+        permissions={permission.value for permission in grant.permissions},
+        is_owner=grant.is_owner,
+    )
+
+
+@router.get("/resources/{resource_id}/effective-access/{user_identifier}", response_model=ACLEffectiveAccessDTO)
+async def inspect_effective_access(
+    account_id: str,
+    resource_id: str,
+    user_identifier: str,
+    _: object = Depends(require_api_key("acl")),
+    service: ACLService = Depends(get_acl_service),
+):
+    principal = await service.resolve_principal(
+        account_id, PrincipalType.USER, principal_identifier=user_identifier
+    )
+    if principal.is_err:
+        raise principal.unwrap_err().to_http_exception()
+    user_id = principal.unwrap().id
+    user = await service.users_repo.find_by_id(user_id, account_id=account_id)
+    username = user.unwrap().username
+    policy_result = await service.get_policy(account_id, resource_id)
+    if policy_result.is_err:
+        raise policy_result.unwrap_err().to_http_exception()
+    policy = policy_result.unwrap()
+    all_groups = await service.group_repo.find_groups_for_user(account_id, user_id, include_disabled=True)
+    if all_groups.is_err:
+        raise all_groups.unwrap_err().to_http_exception()
+    direct = {p.value for p in policy.effective_permissions([user_id])}
+    group_permissions = {}
+    ignored = []
+    active_ids = []
+    for group in all_groups.unwrap():
+        if not group.is_active:
+            ignored.append(group.group_id)
+            continue
+        active_ids.append(group.group_id)
+        permissions = {p.value for p in policy.effective_permissions([group.group_id])}
+        if permissions:
+            group_permissions[group.group_id] = permissions
+    effective = {p.value for p in policy.effective_permissions([user_id] + active_ids)}
+    is_owner = policy.is_owned_by_any([user_id] + active_ids)
+    return ACLEffectiveAccessDTO(username=username, user_id=user_id, resource_id=resource_id, direct_permissions=direct, group_permissions=group_permissions, ignored_disabled_groups=ignored, is_owner=is_owner, effective_permissions=effective, allowed=bool(effective), denial_reason=None if effective else "No direct or active-group grant matched")
+
+
 @router.post("/claim", status_code=status.HTTP_204_NO_CONTENT)
 async def claim_resource(
     account_id: str,
@@ -221,6 +415,7 @@ async def grant_permission(
         principal_type = principal_type,
         permissions    = dto.permissions,
         principal_username = dto.principal_username,
+        principal_identifier = dto.principal_identifier,
         is_admin       = Cfg.is_superadmin(me),
     )
     if result.is_err:
@@ -269,6 +464,7 @@ async def revoke_permission(
         permissions  = dto.permissions,
         principal_type = _principal_type(dto.principal_type or "USER"),
         principal_username = dto.principal_username,
+        principal_identifier = dto.principal_identifier,
         is_admin     = Cfg.is_superadmin(me),
     )
     if result.is_err:
@@ -309,13 +505,14 @@ async def check_permission(
     t1      = T.time()
     subject = me.key
     subject_type = PrincipalType.USER
-    if dto.principal_username or dto.principal_id:
+    if dto.principal_identifier or dto.principal_username or dto.principal_id:
         subject_type = _principal_type(dto.principal_type or "USER")
         principal = await service.resolve_principal(
             account_id,
             subject_type,
             principal_id=dto.principal_id,
             principal_username=dto.principal_username,
+            principal_identifier=dto.principal_identifier,
         )
         if principal.is_err:
             raise principal.unwrap_err().to_http_exception()
@@ -556,7 +753,6 @@ async def service_delete_resource_policy(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/service/groups", status_code=status.HTTP_201_CREATED)
 async def service_create_group(
     account_id: str,
     dto: ServiceCreateGroupDTO,
@@ -571,7 +767,6 @@ async def service_create_group(
     return {"group_id": group_id}
 
 
-@router.post("/service/groups/{group_id}/members", status_code=status.HTTP_204_NO_CONTENT)
 async def service_add_group_members(
     account_id: str,
     group_id: str,
@@ -586,7 +781,6 @@ async def service_add_group_members(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.delete("/service/groups/{group_id}/members", status_code=status.HTTP_204_NO_CONTENT)
 async def service_remove_group_members(
     account_id: str,
     group_id: str,
@@ -601,7 +795,6 @@ async def service_remove_group_members(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/service/groups/{group_id}/members")
 async def service_list_group_members(
     account_id: str,
     group_id: str,
@@ -616,7 +809,6 @@ async def service_list_group_members(
     return [{"user_id": m.user_id, "joined_at": m.joined_at} for m in members]
 
 
-@router.post("/service/groups/{group_id}/owner", status_code=status.HTTP_204_NO_CONTENT)
 async def service_transfer_group_owner(
     account_id: str,
     group_id: str,
@@ -631,7 +823,6 @@ async def service_transfer_group_owner(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.delete("/service/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def service_delete_group(
     account_id: str,
     group_id: str,
@@ -647,7 +838,6 @@ async def service_delete_group(
 
 # ── Groups ────────────────────────────────────────────────────────────────────
 
-@router.post("/groups", status_code=status.HTTP_201_CREATED)
 async def create_group(
     account_id: str,
     dto:     DTO.CreateGroupDTO,
@@ -666,7 +856,6 @@ async def create_group(
     return {"group_id": group_id}
 
 
-@router.delete("/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_group(
     account_id: str,
     group_id: str,
@@ -688,7 +877,6 @@ async def delete_group(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/groups/{group_id}/members", status_code=status.HTTP_204_NO_CONTENT)
 async def add_members(
     account_id: str,
     group_id: str,
@@ -722,7 +910,6 @@ async def add_members(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.delete("/groups/{group_id}/members", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_members(
     account_id: str,
     group_id: str,
@@ -756,7 +943,6 @@ async def remove_members(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/groups/{group_id}/members", status_code=status.HTTP_200_OK)
 async def list_group_members(
     account_id: str,
     group_id: str,
@@ -783,7 +969,6 @@ async def list_group_members(
     return details
 
 
-@router.get("/groups/{group_id}/members/{user_id}", status_code=status.HTTP_200_OK, response_model=GroupMembershipDTO)
 async def check_group_membership(
     account_id: str,
     group_id:   str,
@@ -805,7 +990,6 @@ async def check_group_membership(
 
 # ── Data Discovery Endpoints ──────────────────────────────────────────────────
 
-@router.get("/groups/list", status_code=status.HTTP_200_OK)
 async def list_groups_discovery(
     account_id: str,
     _:       object       = Depends(require_admin_or_api_key("acl")),

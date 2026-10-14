@@ -1,5 +1,5 @@
 import datetime
-from typing import Optional
+from typing import Optional, Literal
 from nanoid import generate
 from pydantic import BaseModel, Field
 
@@ -56,16 +56,21 @@ class RoleAssignment(BaseModel):
     account_id:    str
     assignment_id: str
     subject_id:    str
+    subject_type:  Literal["USER", "GROUP"] = "USER"
     role_id:       str
     assigned_at:   datetime.datetime = Field(
         default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
+    updated_at:    datetime.datetime = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
+    )
 
     @staticmethod
-    def new(account_id: str, subject_id: str, role_id: str) -> "RoleAssignment":
+    def new(account_id: str, subject_id: str, role_id: str, subject_type: str = "USER") -> "RoleAssignment":
         return RoleAssignment(
             account_id    = account_id,
             assignment_id = f"ra-{generate(size=10)}",
             subject_id    = subject_id,
+            subject_type  = subject_type.upper(),
             role_id       = role_id,
         )

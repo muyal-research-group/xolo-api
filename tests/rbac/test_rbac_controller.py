@@ -22,6 +22,55 @@ async def test_create_and_list_roles(rbac_client):
 
 
 @pytest.mark.asyncio
+async def test_role_can_be_edited_linked_to_parent_and_deleted(rbac_client):
+    parent = await rbac_client.post(_path("/roles"), json={
+        "name": "parent",
+        "permissions": ["report:read"],
+    })
+    child = await rbac_client.post(_path("/roles"), json={
+        "name": "child",
+        "description": "temporary",
+        "permissions": [],
+    })
+    assert parent.status_code == child.status_code == 201
+    parent_id = parent.json()["role_id"]
+    child_id = child.json()["role_id"]
+
+    updated = await rbac_client.patch(_path(f"/roles/{child_id}"), json={
+        "name": "child-edited",
+        "description": None,
+    })
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "child-edited"
+    assert updated.json()["description"] is None
+
+    permission = await rbac_client.post(
+        _path(f"/roles/{child_id}/permissions"), json={"permission": "report:write"}
+    )
+    parent_link = await rbac_client.post(
+        _path(f"/roles/{child_id}/parents"), json={"parent_role_id": parent_id}
+    )
+    assert permission.status_code == parent_link.status_code == 200
+    assert permission.json()["permissions"] == ["report:write"]
+    assert parent_link.json()["parent_role_ids"] == [parent_id]
+
+    removed_parent = await rbac_client.request(
+        "DELETE", _path(f"/roles/{child_id}/parents"), json={"parent_role_id": parent_id}
+    )
+    removed_permission = await rbac_client.request(
+        "DELETE", _path(f"/roles/{child_id}/permissions"), json={"permission": "report:write"}
+    )
+    assert removed_parent.status_code == removed_permission.status_code == 200
+    assert removed_parent.json()["parent_role_ids"] == []
+    assert removed_permission.json()["permissions"] == []
+
+    deleted = await rbac_client.delete(_path(f"/roles/{child_id}"))
+    assert deleted.status_code == 204
+    missing = await rbac_client.get(_path(f"/roles/{child_id}"))
+    assert missing.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_account_mismatch_returns_403(rbac_client):
     res = await rbac_client.get(_path("/roles", account_id="acc-other"))
     assert res.status_code == 403

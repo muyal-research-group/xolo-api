@@ -59,7 +59,7 @@ The live API is centered on account-scoped routes such as:
 ```text
 /api/v4/accounts/{account_id}/users/auth
 /api/v4/accounts/{account_id}/rbac/roles
-/api/v4/accounts/{account_id}/acl/groups
+/api/v4/accounts/{account_id}/groups
 ```
 
 As a result, the client now builds most routes from the configured `account_id`, and `api_key` is used directly on API-key-protected operations. Those public methods also accept an optional per-call `api_key=""` override when one request must use a different key than the client default.

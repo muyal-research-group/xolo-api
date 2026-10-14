@@ -30,6 +30,7 @@ class ClaimResourceDTO(BaseModel):
 class GrantOrRevokeDTO(BaseModel):
     principal_id:   Optional[str] = None
     principal_username: Optional[str] = None
+    principal_identifier: Optional[str] = None
     principal_type: Optional[PrincipalType] = None
     resource_id:    str
     permissions:    List[Permission]
@@ -40,6 +41,7 @@ class CheckDTO(BaseModel):
     permissions:    List[Permission]
     principal_id:   Optional[str] = None  # if omitted → defaults to the authenticated caller
     principal_username: Optional[str] = None
+    principal_identifier: Optional[str] = None
     principal_type: Optional[PrincipalType] = None
 
 
@@ -56,9 +58,37 @@ class ServiceCreateGroupDTO(BaseModel):
 
 
 class TransferResourceOwnerDTO(BaseModel):
-    principal_id: str
+    principal_id: Optional[str] = None
+    owner_identifier: Optional[str] = None
     principal_type: PrincipalType = PrincipalType.USER
     keep_previous_permissions: Optional[List[Permission]] = None
+
+
+class CreateResourceDTO(BaseModel):
+    resource_id: str
+    owner_type: PrincipalType = PrincipalType.USER
+    owner_identifier: str
+
+
+class DeleteResourcePolicyDTO(BaseModel):
+    confirm_resource_id: str
+
+
+class UpdateResourceGrantDTO(BaseModel):
+    permissions: List[Permission] = Field(min_length=1)
+
+
+class ACLEffectiveAccessDTO(BaseModel):
+    username: str
+    user_id: str
+    resource_id: str
+    direct_permissions: Set[str]
+    group_permissions: dict[str, Set[str]]
+    ignored_disabled_groups: List[str]
+    is_owner: bool
+    effective_permissions: Set[str]
+    allowed: bool
+    denial_reason: Optional[str] = None
 
 
 class TransferGroupOwnerDTO(BaseModel):

@@ -1,5 +1,17 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
+  app:{
+    head: {
+      title: 'Xolo - Admin Panel',
+      meta: [
+        { name: 'description', content: 'Xolo UI' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' }
+      ],
+      link: [
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
+      ]
+    }
+  },
   compatibilityDate: '2025-07-15',
   devtools: { enabled: false },
   modules: ['vuetify-nuxt-module'],
@@ -12,6 +24,11 @@ export default defineNuxtConfig({
   },
   vuetify: {
     vuetifyOptions: {
+      defaults: {
+        VAlert: {
+          closable: true
+        }
+      },
       theme: {
         defaultTheme: 'xoloDark',
         themes: {

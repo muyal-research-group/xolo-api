@@ -15,11 +15,13 @@ from xoloapi.ngac.dto import (
     AssignDTO, AssociateDTO, CheckAccessDTO,
     CreateNodeDTO, NGACDecisionDTO, NGACNodeResponseDTO,
     NGACAssignmentResponseDTO, NGACAssociationResponseDTO, RemoveAssignmentDTO,
-    UpdateNodeDTO,
+    UpdateNodeDTO, UpdateAssociationDTO,
 )
 from xoloapi.ngac.infrastructure.mongo_ngac_repository import MongoNGACRepository
 from xoloapi.db.constants import CollectionNames
 from xoloapi.log.format import build_log_payload
+from xoloapi.users.infrastructure.mongo_repository import MongoUsersRepository
+from xoloapi.acl.infrastructure.mongo_resource_policy_repository import MongoResourcePolicyRepository
 
 log = Log(
     name                   = __name__,
@@ -45,8 +47,19 @@ def get_ngac_service() -> NGACService:
             nodes_col        = CollectionNames.NGAC_NODES_COLLECTION_NAME,
             assignments_col  = CollectionNames.NGAC_ASSIGNMENTS_COLLECTION_NAME,
             associations_col = CollectionNames.NGAC_ASSOCIATIONS_COLLECTION_NAME,
-        )
+        ),
+        users_repo=MongoUsersRepository(DbX.get_database()[CollectionNames.USERS_COLLECTION_NAME]),
+        acl_repo=MongoResourcePolicyRepository(DbX.get_database(), CollectionNames.ACL_RESOURCE_POLICIES_COLLECTION_NAME),
     )
+
+
+async def _node_response(account_id: str, node, service: NGACService) -> NGACNodeResponseDTO:
+    username = None
+    if node.user_id and service._users is not None:
+        user = await service._users.find_by_id(node.user_id, account_id=account_id)
+        if user.is_some:
+            username = user.unwrap().username
+    return NGACNodeResponseDTO(**node.model_dump(), username=username)
 
 
 # ── Nodes ─────────────────────────────────────────────────────────────────────
@@ -60,7 +73,11 @@ async def create_node(
     service: NGACService  = Depends(get_ngac_service),
 ):
     t1     = T.time()
-    result = await service.create_node(account_id, dto.node_type, dto.name, dto.properties, owner_id=me.key)
+    result = await service.create_node(
+        account_id, dto.node_type, dto.name, dto.properties, owner_id=me.key,
+        user_id=dto.user_id, resource_id=dto.resource_id,
+        user_identifier=dto.user_identifier,
+    )
     if result.is_err:
         err = result.unwrap_err()
         log.error(build_log_payload("ngac.create_node.error", started_at=t1, error=err, actor_user_id=me.key, node_name=dto.name, node_type=dto.node_type.value))
@@ -86,7 +103,25 @@ async def list_nodes(
         raise err.to_http_exception()
     nodes = result.unwrap()
     log.info(build_log_payload("ngac.list_nodes", started_at=t1, actor_user_id=me.key, node_type=node_type, node_count=len(nodes)))
-    return [NGACNodeResponseDTO.model_validate(n) for n in nodes]
+    return [await _node_response(account_id, node, service) for node in nodes]
+
+
+@router.get("/nodes/list", status_code=status.HTTP_200_OK)
+async def list_nodes_discovery(
+    account_id: str,
+    node_type: Optional[str] = Query(None, description="Filter by node type"),
+    _:         object        = Depends(require_api_key("ngac")),
+    service:   NGACService   = Depends(get_ngac_service),
+):
+    t1     = T.time()
+    result = await service.list_nodes(account_id, node_type=node_type)
+    if result.is_err:
+        err = result.unwrap_err()
+        log.error(build_log_payload("ngac.list_nodes_discovery.error", started_at=t1, error=err, node_type=node_type))
+        raise err.to_http_exception()
+    nodes = result.unwrap()
+    log.info(build_log_payload("ngac.list_nodes_discovery", started_at=t1, node_type=node_type, node_count=len(nodes)))
+    return [{"id": n.node_id, "name": n.name, "type": n.node_type} for n in nodes]
 
 
 @router.get("/nodes/{node_id}", status_code=status.HTTP_200_OK)
@@ -104,7 +139,7 @@ async def get_node(
         log.error(build_log_payload("ngac.get_node.error", started_at=t1, error=err, actor_user_id=me.key, node_id=node_id))
         raise err.to_http_exception()
     log.info(build_log_payload("ngac.get_node", started_at=t1, actor_user_id=me.key, node_id=node_id))
-    return NGACNodeResponseDTO.model_validate(result.unwrap())
+    return await _node_response(account_id, result.unwrap(), service)
 
 
 @router.patch("/nodes/{node_id}", status_code=status.HTTP_200_OK)
@@ -122,6 +157,10 @@ async def update_node(
         node_id,
         name=dto.name,
         properties=dto.properties,
+        user_id=dto.user_id,
+        user_identifier=dto.user_identifier,
+        user_binding_set=bool({"user_id", "user_identifier"} & dto.model_fields_set),
+        resource_id=dto.resource_id,
         requester_key=me.key,
         is_admin=Cfg.is_superadmin(me),
     )
@@ -130,7 +169,7 @@ async def update_node(
         log.error(build_log_payload("ngac.update_node.error", started_at=t1, error=err, actor_user_id=me.key, node_id=node_id))
         raise err.to_http_exception()
     log.info(build_log_payload("ngac.update_node", started_at=t1, actor_user_id=me.key, node_id=node_id))
-    return NGACNodeResponseDTO.model_validate(result.unwrap())
+    return await _node_response(account_id, result.unwrap(), service)
 
 
 @router.delete("/nodes/{node_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -149,6 +188,20 @@ async def delete_node(
         raise err.to_http_exception()
     log.info(build_log_payload("ngac.delete_node", started_at=t1, actor_user_id=me.key, node_id=node_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/nodes/{node_id}/deletion-impact")
+async def node_deletion_impact(
+    account_id: str,
+    node_id: str,
+    _: object = Depends(require_api_key("ngac")),
+    me: DTO.UserDTO = Depends(MX.get_current_user),
+    service: NGACService = Depends(get_ngac_service),
+):
+    result = await service.deletion_impact(account_id, node_id)
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    return result.unwrap()
 
 
 # ── Assignments ───────────────────────────────────────────────────────────────
@@ -264,6 +317,23 @@ async def remove_association(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.patch("/associations/{association_id}", response_model=NGACAssociationResponseDTO)
+async def update_association(
+    account_id: str,
+    association_id: str,
+    dto: UpdateAssociationDTO,
+    _: object = Depends(require_api_key("ngac")),
+    me: DTO.UserDTO = Depends(MX.get_current_user),
+    service: NGACService = Depends(get_ngac_service),
+):
+    result = await service.update_association(
+        account_id, association_id, dto.operations, me.key, Cfg.is_superadmin(me)
+    )
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    return NGACAssociationResponseDTO.model_validate(result.unwrap())
+
+
 @router.get("/associations", status_code=status.HTTP_200_OK)
 async def list_associations(
     account_id: str,
@@ -284,6 +354,18 @@ async def list_associations(
 
 # ── Access check ──────────────────────────────────────────────────────────────
 
+@router.get("/graph")
+async def resolved_graph(
+    account_id: str,
+    _: object = Depends(require_api_key("ngac")),
+    me: DTO.UserDTO = Depends(MX.get_current_user),
+    service: NGACService = Depends(get_ngac_service),
+):
+    result = await service.resolved_graph(account_id)
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    return result.unwrap()
+
 @router.post("/check", status_code=status.HTTP_200_OK)
 async def check_access(
     account_id: str,
@@ -293,7 +375,7 @@ async def check_access(
     service: NGACService = Depends(get_ngac_service),
 ):
     t1     = T.time()
-    result = await service.check_access(account_id, dto.user_id, dto.object_id, dto.operation)
+    result = await service.check_access_detailed(account_id, dto.user_id, dto.object_id, dto.operation)
     if result.is_err:
         err = result.unwrap_err()
         log.error(
@@ -308,7 +390,8 @@ async def check_access(
             )
         )
         raise err.to_http_exception()
-    allowed, reason = result.unwrap()
+    detail = result.unwrap()
+    allowed, reason = detail["allowed"], detail["reason"]
     log.info(
         build_log_payload(
             "ngac.check",
@@ -327,28 +410,14 @@ async def check_access(
         user_id   = dto.user_id,
         object_id = dto.object_id,
         operation = dto.operation,
+        governing_policy_classes = detail["governing_policy_classes"],
+        successful_paths = detail["successful_paths"],
+        failed_classes = detail["failed_classes"],
+        matching_associations = detail["matching_associations"],
     )
 
 
 # ── Data Discovery Endpoints ──────────────────────────────────────────────────
-
-@router.get("/nodes/list", status_code=status.HTTP_200_OK)
-async def list_nodes_discovery(
-    account_id: str,
-    node_type: Optional[str] = Query(None, description="Filter by node type"),
-    _:         object        = Depends(require_api_key("ngac")),
-    service:   NGACService   = Depends(get_ngac_service),
-):
-    t1     = T.time()
-    result = await service.list_nodes(account_id, node_type=node_type)
-    if result.is_err:
-        err = result.unwrap_err()
-        log.error(build_log_payload("ngac.list_nodes_discovery.error", started_at=t1, error=err, node_type=node_type))
-        raise err.to_http_exception()
-    nodes = result.unwrap()
-    log.info(build_log_payload("ngac.list_nodes_discovery", started_at=t1, node_type=node_type, node_count=len(nodes)))
-    return [{"id": n.node_id, "name": n.name, "type": n.node_type} for n in nodes]
-
 
 @router.get("/assignments/list", status_code=status.HTTP_200_OK)
 async def list_assignments_discovery(

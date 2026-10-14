@@ -270,7 +270,7 @@ class TestDiscoveryEndpoints:
 
     _discovery_cases = [
         ("list_scopes_discovery",              f"{BASE}/scopes/list"),
-        ("list_acl_groups_discovery",          f"{BASE}/acl/groups/list"),
+        ("list_acl_groups_discovery",          f"{BASE}/groups/references"),
         ("list_acl_principals_discovery",      f"{BASE}/acl/principals/list"),
         ("list_acl_resources_discovery",       f"{BASE}/acl/resources/list"),
         ("list_abac_policies_discovery",       f"{BASE}/abac/policies/list"),

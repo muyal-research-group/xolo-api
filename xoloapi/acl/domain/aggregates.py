@@ -10,6 +10,7 @@ from xoloapi.errors.base import (
     AccessDeniedError,
     ConflictError,
     NotFoundError,
+    ValidationError,
 )
 
 
@@ -174,6 +175,32 @@ class ResourcePolicy(BaseModel):
             new_grants = [g for g in self.grants if g.grant_id != existing.grant_id]
 
         return Ok(self.model_copy(update={"grants": new_grants}))
+
+    def update_grant_permissions(
+        self,
+        grant_id: str,
+        permissions: set[Permission],
+        caller_principal_ids: list[str],
+    ) -> Result["ResourcePolicy", XoloException]:
+        """Replace a non-owner grant's permissions while preserving its identity."""
+        if Permission.MANAGE not in self.effective_permissions(caller_principal_ids):
+            return Err(AccessDeniedError("You do not have permission to update this access grant"))
+        if not permissions:
+            return Err(ValidationError("At least one permission is required", "permissions"))
+
+        existing = next((grant for grant in self.grants if grant.grant_id == grant_id), None)
+        if existing is None:
+            return Err(NotFoundError("AccessGrant", grant_id))
+        if existing.is_owner:
+            return Err(ConflictError(
+                "The protected owner grant cannot be edited; transfer ownership instead",
+                metadata={"resource_id": self.resource_id, "grant_id": grant_id},
+            ))
+
+        updated = existing.model_copy(update={"permissions": permissions})
+        return Ok(self.model_copy(update={
+            "grants": [updated if grant.grant_id == grant_id else grant for grant in self.grants]
+        }))
 
     def check(self, principal_ids: list[str], required: set[Permission]) -> bool:
         """Return True only if required ⊆ union of all matching grants' permissions."""

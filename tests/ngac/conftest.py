@@ -22,7 +22,7 @@ from xoloapi.db.constants import CollectionNames
 from xoloapi.ngac.infrastructure.mongo_ngac_repository import MongoNGACRepository
 from xoloapi.ngac.application.ngac_service import NGACService
 
-_MONGO_URI = "mongodb://localhost:27018"
+_MONGO_URI = "mongodb://localhost:27018/?directConnection=true"
 _DB_NAME   = "xolo_test_ngac"
 _COLS      = ["ngac_nodes", "ngac_assignments", "ngac_associations"]
 ACCOUNT_ID = "acc-ngac"

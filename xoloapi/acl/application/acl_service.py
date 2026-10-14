@@ -1,12 +1,13 @@
 from option import Result, Ok, Err
 
-from xoloapi.acl.domain.aggregates import ResourcePolicy
+from xoloapi.acl.domain.aggregates import AccessGrant, ResourcePolicy
 from xoloapi.acl.domain.repositories import IResourcePolicyRepository
 from xoloapi.groups.domain.aggregates import SecurityGroup
 from xoloapi.groups.domain.repositories import ISecurityGroupRepository
 from xoloapi.acl.domain.value_objects import Permission, Principal, PrincipalType
-from xoloapi.errors.base import AccessDeniedError, NotFoundError, XoloException
+from xoloapi.errors.base import AccessDeniedError, ConflictError, NotFoundError, ValidationError, XoloException
 from xoloapi.shared.pagination import PageResult
+from xoloapi.users.application.user_resolution import resolve_user_identifier
 
 
 class ACLService:
@@ -45,21 +46,20 @@ class ACLService:
         principal_type: PrincipalType,
         principal_id: str | None = None,
         principal_username: str | None = None,
+        principal_identifier: str | None = None,
     ) -> Result[Principal, XoloException]:
         if principal_type == PrincipalType.USER:
             if self.users_repo is None:
                 if principal_id:
                     return Ok(Principal(type=PrincipalType.USER, id=principal_id.strip()))
                 return Err(NotFoundError("User", principal_username or principal_id or ""))
-            if principal_username:
-                maybe_user = await self.users_repo.find_by_username(account_id, principal_username.strip())
-            elif principal_id:
-                maybe_user = await self.users_repo.find_by_id(principal_id.strip(), account_id=account_id)
-            else:
-                return Err(NotFoundError("User", ""))
-            if maybe_user.is_none:
-                return Err(NotFoundError("User", principal_username or principal_id or ""))
-            return Ok(Principal(type=PrincipalType.USER, id=maybe_user.unwrap().key))
+            resolved = await resolve_user_identifier(
+                self.users_repo, account_id,
+                principal_identifier or principal_username or principal_id or "",
+            )
+            if resolved.is_err:
+                return Err(resolved.unwrap_err())
+            return Ok(Principal(type=PrincipalType.USER, id=resolved.unwrap().user_id))
 
         if not principal_id:
             return Err(NotFoundError("SecurityGroup", ""))
@@ -68,7 +68,95 @@ class ACLService:
             return Err(group_result.unwrap_err())
         if group_result.unwrap().is_none:
             return Err(NotFoundError("SecurityGroup", principal_id))
+        if not group_result.unwrap().unwrap().is_active:
+            return Err(ValidationError("Disabled groups cannot own or receive ACL grants"))
         return Ok(Principal(type=PrincipalType.GROUP, id=principal_id.strip()))
+
+    async def create_resource(
+        self, account_id: str, resource_id: str, owner_type: PrincipalType, owner_identifier: str
+    ) -> Result[ResourcePolicy, XoloException]:
+        normalized_resource = resource_id.strip()
+        if not normalized_resource:
+            return Err(ValidationError("resource_id is required"))
+        owner = await self.resolve_principal(
+            account_id, owner_type,
+            principal_identifier=owner_identifier if owner_type == PrincipalType.USER else None,
+            principal_id=owner_identifier if owner_type == PrincipalType.GROUP else None,
+        )
+        if owner.is_err:
+            return Err(owner.unwrap_err())
+        claimed = ResourcePolicy(
+            account_id=account_id, resource_id=normalized_resource
+        ).claim_principal(owner.unwrap())
+        if claimed.is_err:
+            return Err(claimed.unwrap_err())
+        if hasattr(self.policy_repo, "create"):
+            return await self.policy_repo.create(claimed.unwrap())
+        existing = await self.policy_repo.find_by_resource(account_id, normalized_resource)
+        if existing.is_err:
+            return Err(existing.unwrap_err())
+        if existing.unwrap().is_some:
+            return Err(ConflictError("Resource policy already exists"))
+        saved = await self.policy_repo.save(claimed.unwrap())
+        return Err(saved.unwrap_err()) if saved.is_err else Ok(claimed.unwrap())
+
+    async def revoke_grant(
+        self, account_id: str, resource_id: str, grant_id: str, caller_id: str, is_admin: bool = False
+    ) -> Result[bool, XoloException]:
+        policy_result = await self.get_policy(account_id, resource_id)
+        if policy_result.is_err:
+            return Err(policy_result.unwrap_err())
+        policy = policy_result.unwrap()
+        grant = next((item for item in policy.grants if item.grant_id == grant_id), None)
+        if grant is None:
+            return Err(NotFoundError("AccessGrant", grant_id))
+        if grant.is_owner:
+            return Err(ConflictError("The protected owner grant cannot be revoked"))
+        if is_admin:
+            caller_ids = self._admin_principal_ids(policy)
+        else:
+            caller_result = await self._principal_ids(account_id, caller_id)
+            if caller_result.is_err:
+                return Err(caller_result.unwrap_err())
+            caller_ids = caller_result.unwrap()
+        updated = policy.revoke(grant.principal.id, set(grant.permissions), caller_id, caller_ids)
+        if updated.is_err:
+            return Err(updated.unwrap_err())
+        saved = await self.policy_repo.save(updated.unwrap())
+        return Err(saved.unwrap_err()) if saved.is_err else Ok(True)
+
+    async def update_grant_permissions(
+        self,
+        account_id: str,
+        resource_id: str,
+        grant_id: str,
+        permissions: list[str],
+        caller_id: str,
+        is_admin: bool = False,
+    ) -> Result[AccessGrant, XoloException]:
+        policy_result = await self.get_policy(account_id, resource_id)
+        if policy_result.is_err:
+            return Err(policy_result.unwrap_err())
+        policy = policy_result.unwrap()
+        if is_admin:
+            caller_ids = self._admin_principal_ids(policy)
+        else:
+            caller_result = await self._principal_ids(account_id, caller_id)
+            if caller_result.is_err:
+                return Err(caller_result.unwrap_err())
+            caller_ids = caller_result.unwrap()
+
+        updated = policy.update_grant_permissions(
+            grant_id,
+            {Permission(permission) for permission in permissions},
+            caller_ids,
+        )
+        if updated.is_err:
+            return Err(updated.unwrap_err())
+        saved = await self.policy_repo.save(updated.unwrap())
+        if saved.is_err:
+            return Err(saved.unwrap_err())
+        return Ok(next(grant for grant in updated.unwrap().grants if grant.grant_id == grant_id))
 
     async def principal_name(self, account_id: str, principal: Principal) -> str:
         if principal.type == PrincipalType.USER and self.users_repo is not None:
@@ -127,6 +215,7 @@ class ACLService:
         principal_type: PrincipalType,
         permissions:    list[str],
         principal_username: str | None = None,
+        principal_identifier: str | None = None,
         is_admin:       bool = False,
     ) -> Result[bool, XoloException]:
         find = await self.policy_repo.find_by_resource(account_id, resource_id)
@@ -145,7 +234,7 @@ class ACLService:
             caller_principal_ids = caller_pids.unwrap()
         perms  = {Permission(p) for p in permissions}
         principal_result = await self.resolve_principal(
-            account_id, principal_type, principal_id, principal_username
+            account_id, principal_type, principal_id, principal_username, principal_identifier
         )
         if principal_result.is_err:
             return Err(principal_result.unwrap_err())
@@ -171,6 +260,7 @@ class ACLService:
         permissions:  list[str],
         principal_type: PrincipalType = PrincipalType.USER,
         principal_username: str | None = None,
+        principal_identifier: str | None = None,
         is_admin:     bool = False,
     ) -> Result[bool, XoloException]:
         find = await self.policy_repo.find_by_resource(account_id, resource_id)
@@ -190,7 +280,7 @@ class ACLService:
         perms  = {Permission(p) for p in permissions}
 
         principal_result = await self.resolve_principal(
-            account_id, principal_type, principal_id, principal_username
+            account_id, principal_type, principal_id, principal_username, principal_identifier
         )
         if principal_result.is_err:
             # Revocation is also the cleanup path for legacy/dangling grants.
