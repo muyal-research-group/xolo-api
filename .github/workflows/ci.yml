@@ -4,7 +4,6 @@ on:
   pull_request:
   workflow_dispatch:
   push:
-    branches: [master]
 
 jobs:
   api-tests:
@@ -89,8 +88,8 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction
 
-      - name: Run client unit and contract tests
-        run: poetry run pytest tests/client/test_client_contracts.py tests/test_abac.py tests/test_acl.py -q
+      - name: Run all client tests
+        run: poetry run pytest -q
 
       - name: Build client distributions
         run: poetry build
