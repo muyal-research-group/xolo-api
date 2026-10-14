@@ -13,8 +13,8 @@ jobs:
     name: Test and build client
     runs-on: ubuntu-latest
     env:
-      XOLO_OUTPUT_PATH: ${{ runner.temp }}/xolo-client-data
-      XOLO_LOG_PATH: ${{ runner.temp }}/xolo-client-logs
+      XOLO_OUTPUT_PATH: $GITHUB_WORKSPACE/xolo-client-data
+      XOLO_LOG_PATH: $GITHUB_WORKSPACE/xolo-client-logs
     defaults:
       run:
         working-directory: xolo-client
