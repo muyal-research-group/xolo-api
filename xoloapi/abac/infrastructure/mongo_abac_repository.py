@@ -19,7 +19,7 @@ from xoloapi.errors.base import DatabaseError, NotFoundError, XoloException
 from xoloapi.abac.domain.aggregates import ABACEvent, ABACPolicy
 from xoloapi.abac.domain.repositories import IABACRepository
 from xoloapi.abac.domain.value_objects import (
-    Action, Effect, GeoPoint, Location, Resource, Subject, TimeWindow, TimeWindowMode,
+    Action, Effect, GeoPoint, Location, MatcherVersion, Resource, Subject, TimeWindow, TimeWindowMode,
 )
 from xoloapi.log.format import build_log_payload
 
@@ -86,6 +86,10 @@ class MongoABACRepository(IABACRepository):
             name      = doc["name"],
             effect    = Effect(doc["effect"]),
             events    = [cls._event_from_doc(e) for e in doc.get("events", [])],
+            matcher_version = MatcherVersion(doc.get("matcher_version", "legacy_v1")),
+            timezone = doc.get("timezone", "UTC"),
+            created_at = doc.get("created_at", datetime.datetime.now(datetime.timezone.utc)),
+            updated_at = doc.get("updated_at", doc.get("created_at", datetime.datetime.now(datetime.timezone.utc))),
         )
 
     # ── IABACRepository ───────────────────────────────────────────────────────
@@ -98,8 +102,14 @@ class MongoABACRepository(IABACRepository):
                 "name":       policy.name,
                 "effect":     policy.effect.value,
                 "events":     [self._event_to_doc(e) for e in policy.events],
+                "matcher_version": policy.matcher_version.value,
+                "timezone": policy.timezone,
                 "created_at": datetime.datetime.now(datetime.timezone.utc),
+                "updated_at": datetime.datetime.now(datetime.timezone.utc),
             }
+            existing = await self._col.find_one({"_id": policy.policy_id}, {"created_at": 1})
+            if existing and existing.get("created_at"):
+                doc["created_at"] = existing["created_at"]
             await self._col.replace_one({"_id": policy.policy_id}, doc, upsert=True)
             return Ok(policy.policy_id)
         except Exception as e:

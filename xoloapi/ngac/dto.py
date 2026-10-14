@@ -8,6 +8,17 @@ class CreateNodeDTO(BaseModel):
     name:       str
     node_type:  NodeType
     properties: Dict[str, str] = {}
+    user_id: Optional[str] = None
+    user_identifier: Optional[str] = None
+    resource_id: Optional[str] = None
+
+
+class UpdateNodeDTO(BaseModel):
+    name:       Optional[str] = None
+    properties: Optional[Dict[str, str]] = None
+    user_id: Optional[str] = None
+    user_identifier: Optional[str] = None
+    resource_id: Optional[str] = None
 
 
 class AssignDTO(BaseModel):
@@ -28,6 +39,10 @@ class AssociateDTO(BaseModel):
     operations:          List[str]
 
 
+class UpdateAssociationDTO(BaseModel):
+    operations: List[str]
+
+
 class CheckAccessDTO(BaseModel):
     user_id:   str
     object_id: str
@@ -40,6 +55,10 @@ class NGACDecisionDTO(BaseModel):
     user_id:   str
     object_id: str
     operation: str
+    governing_policy_classes: List[dict] = []
+    successful_paths: List[dict] = []
+    failed_classes: List[dict] = []
+    matching_associations: List[dict] = []
 
 
 # ── Response DTOs ─────────────────────────────────────────────────────────────
@@ -52,7 +71,11 @@ class NGACNodeResponseDTO(BaseModel):
     name:       str
     properties: Dict[str, str] = {}
     owner_id:   str = ""
+    user_id: Optional[str] = None
+    username: Optional[str] = None
+    resource_id: Optional[str] = None
     created_at: datetime.datetime
+    updated_at: Optional[datetime.datetime] = None
 
 
 class NGACAssignmentResponseDTO(BaseModel):

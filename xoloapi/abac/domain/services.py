@@ -10,11 +10,21 @@ class ABACEvaluator:
 
     def evaluate(self, request: ABACAccessRequest, policies: List[ABACPolicy]) -> ABACDecision:
         first_allow: tuple[str, str] | None = None
+        matched_policy_ids: list[str] = []
+        matched_event_ids: list[str] = []
+        warnings = []
+        if request.location is None:
+            warnings.append("omitted_context:location")
+        if request.time is None:
+            warnings.append("omitted_context:time")
 
         for policy in policies:
             for event in policy.events:
-                if not event.matches(request):
+                if not event.matches(request, policy.matcher_version, policy.timezone):
                     continue
+
+                matched_policy_ids.append(policy.policy_id)
+                matched_event_ids.append(event.event_id)
 
                 if policy.effect == Effect.DENY:
                     return ABACDecision(
@@ -22,6 +32,10 @@ class ABACEvaluator:
                         matched_policy = policy.policy_id,
                         matched_event  = event.event_id,
                         reason         = "Explicit DENY policy matched",
+                        matched_policy_ids=matched_policy_ids,
+                        matched_event_ids=matched_event_ids,
+                        request_context=request.model_dump(),
+                        warnings=warnings,
                     )
 
                 if first_allow is None:
@@ -34,6 +48,14 @@ class ABACEvaluator:
                 matched_policy = policy_id,
                 matched_event  = event_id,
                 reason         = "ALLOW policy matched",
+                matched_policy_ids=matched_policy_ids,
+                matched_event_ids=matched_event_ids,
+                request_context=request.model_dump(),
+                warnings=warnings,
             )
 
-        return ABACDecision(allowed=False, reason="No matching policy (default deny)")
+        return ABACDecision(
+            allowed=False, reason="No matching policy (default deny)",
+            matched_policy_ids=matched_policy_ids, matched_event_ids=matched_event_ids,
+            request_context=request.model_dump(), warnings=warnings,
+        )

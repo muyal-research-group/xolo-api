@@ -13,6 +13,9 @@ class INGACRepository(ABC):
     async def create_node(self, node: NGACNode) -> Result[str, XoloException]: ...
 
     @abstractmethod
+    async def update_node(self, node: NGACNode) -> Result[bool, XoloException]: ...
+
+    @abstractmethod
     async def find_node(self, account_id: str, node_id: str) -> Result[Option[NGACNode], XoloException]: ...
 
     @abstractmethod
@@ -42,6 +45,9 @@ class INGACRepository(ABC):
 
     @abstractmethod
     async def create_association(self, assoc: NGACAssociation) -> Result[str, XoloException]: ...
+
+    @abstractmethod
+    async def update_association(self, assoc: NGACAssociation) -> Result[bool, XoloException]: ...
 
     @abstractmethod
     async def find_association(self, account_id: str, association_id: str) -> Result[Option[NGACAssociation], XoloException]: ...

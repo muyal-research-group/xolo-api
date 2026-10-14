@@ -4,6 +4,10 @@ Permission format: "resource_type:action"  e.g. "document:read", "report:*", "*:
 Wildcards are supported: "*" in resource_type or action matches any value.
 """
 from pydantic import BaseModel
+import re
+
+
+PERMISSION_PATTERN = re.compile(r"^[^:\s]+:[^:\s]+$")
 
 
 class RBACPermission(BaseModel):
@@ -18,9 +22,9 @@ class RBACPermission(BaseModel):
 
     @classmethod
     def from_string(cls, s: str) -> "RBACPermission":
-        parts = s.split(":", 1)
-        if len(parts) != 2:
+        if not isinstance(s, str) or PERMISSION_PATTERN.fullmatch(s) is None:
             raise ValueError(f"Invalid permission format '{s}' — expected 'resource_type:action'")
+        parts = s.split(":", 1)
         return cls(resource_type=parts[0], action=parts[1])
 
     def to_string(self) -> str:

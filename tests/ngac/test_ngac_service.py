@@ -66,6 +66,24 @@ async def test_get_node(ngac_service: NGACService):
 
 
 @pytest.mark.asyncio
+async def test_update_node(ngac_service: NGACService):
+    node_id = (await ngac_service.create_node(
+        ACCOUNT_ID, node_type=NodeType.OBJECT_ATTRIBUTE, name="Drafts"
+    )).unwrap()
+
+    result = await ngac_service.update_node(
+        ACCOUNT_ID,
+        node_id,
+        name="Published",
+        properties={"retention": "7y"},
+    )
+
+    assert result.is_ok
+    assert result.unwrap().name == "Published"
+    assert result.unwrap().properties == {"retention": "7y"}
+
+
+@pytest.mark.asyncio
 async def test_delete_node(ngac_service: NGACService):
     node_id = (await ngac_service.create_node(
         ACCOUNT_ID, node_type=NodeType.USER, name="Temp"

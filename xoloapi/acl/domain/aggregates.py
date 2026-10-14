@@ -10,6 +10,7 @@ from xoloapi.errors.base import (
     AccessDeniedError,
     ConflictError,
     NotFoundError,
+    ValidationError,
 )
 
 
@@ -49,10 +50,68 @@ class ResourcePolicy(BaseModel):
         grant = AccessGrant(
             grant_id   = f"ag-{generate(size=10)}",
             principal  = Principal(type=PrincipalType.USER, id=user_id),
-            permissions= {Permission.MANAGE, Permission.READ, Permission.WRITE, Permission.DELETE},
+            permissions= set(Permission),
             is_owner   = True,
         )
         return Ok(self.model_copy(update={"grants": self.grants + [grant]}))
+
+    def claim_principal(self, principal: Principal) -> Result["ResourcePolicy", XoloException]:
+        """Claim an unowned resource for a user or group principal."""
+        existing = self._find_grant(principal.id)
+        if existing and existing.is_owner:
+            normalized = existing.model_copy(update={"permissions": set(Permission)})
+            return Ok(self.model_copy(update={
+                "grants": [normalized if g.grant_id == existing.grant_id else g for g in self.grants]
+            }))
+
+        current_owner = next((g for g in self.grants if g.is_owner), None)
+        if current_owner:
+            return Err(ConflictError(
+                "Resource is already owned by another principal",
+                metadata={"resource_id": self.resource_id, "owner": current_owner.principal.id},
+            ))
+
+        owner_grant = AccessGrant(
+            grant_id=f"ag-{generate(size=10)}",
+            principal=principal,
+            permissions=set(Permission),
+            is_owner=True,
+        )
+        return Ok(self.model_copy(update={"grants": self.grants + [owner_grant]}))
+
+    def transfer_owner(
+        self,
+        principal: Principal,
+        keep_previous_permissions: set[Permission] | None = None,
+    ) -> Result["ResourcePolicy", XoloException]:
+        """Replace the sole owner while optionally retaining the old grant."""
+        current_owner = next((g for g in self.grants if g.is_owner), None)
+        if current_owner is None:
+            return Err(NotFoundError("Resource owner", self.resource_id))
+
+        new_grants: list[AccessGrant] = []
+        for grant in self.grants:
+            if grant.grant_id == current_owner.grant_id:
+                if grant.principal == principal:
+                    new_grants.append(grant.model_copy(update={"permissions": set(Permission), "is_owner": True}))
+                elif keep_previous_permissions:
+                    new_grants.append(grant.model_copy(update={
+                        "permissions": keep_previous_permissions,
+                        "is_owner": False,
+                    }))
+                continue
+            if grant.principal == principal:
+                continue
+            new_grants.append(grant)
+
+        if current_owner.principal != principal:
+            new_grants.append(AccessGrant(
+                grant_id=f"ag-{generate(size=10)}",
+                principal=principal,
+                permissions=set(Permission),
+                is_owner=True,
+            ))
+        return Ok(self.model_copy(update={"grants": new_grants}))
 
     def grant(
         self,
@@ -117,6 +176,32 @@ class ResourcePolicy(BaseModel):
 
         return Ok(self.model_copy(update={"grants": new_grants}))
 
+    def update_grant_permissions(
+        self,
+        grant_id: str,
+        permissions: set[Permission],
+        caller_principal_ids: list[str],
+    ) -> Result["ResourcePolicy", XoloException]:
+        """Replace a non-owner grant's permissions while preserving its identity."""
+        if Permission.MANAGE not in self.effective_permissions(caller_principal_ids):
+            return Err(AccessDeniedError("You do not have permission to update this access grant"))
+        if not permissions:
+            return Err(ValidationError("At least one permission is required", "permissions"))
+
+        existing = next((grant for grant in self.grants if grant.grant_id == grant_id), None)
+        if existing is None:
+            return Err(NotFoundError("AccessGrant", grant_id))
+        if existing.is_owner:
+            return Err(ConflictError(
+                "The protected owner grant cannot be edited; transfer ownership instead",
+                metadata={"resource_id": self.resource_id, "grant_id": grant_id},
+            ))
+
+        updated = existing.model_copy(update={"permissions": permissions})
+        return Ok(self.model_copy(update={
+            "grants": [updated if grant.grant_id == grant_id else grant for grant in self.grants]
+        }))
+
     def check(self, principal_ids: list[str], required: set[Permission]) -> bool:
         """Return True only if required ⊆ union of all matching grants' permissions."""
         return required.issubset(self.effective_permissions(principal_ids))
@@ -125,11 +210,13 @@ class ResourcePolicy(BaseModel):
         granted: set[Permission] = set()
         for g in self.grants:
             if g.principal.id in principal_ids:
-                granted |= g.permissions
+                granted |= set(Permission) if g.is_owner else g.permissions
         return granted
+
+    def is_owned_by_any(self, principal_ids: list[str]) -> bool:
+        return any(g.is_owner and g.principal.id in principal_ids for g in self.grants)
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
     def _find_grant(self, principal_id: str) -> Optional[AccessGrant]:
         return next((g for g in self.grants if g.principal.id == principal_id), None)
-

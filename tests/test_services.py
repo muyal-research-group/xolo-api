@@ -39,7 +39,7 @@ class _RecordingUsersMailer:
 
 @pytest_asyncio.fixture
 async def user_service():
-    client  = AsyncIOMotorClient("mongodb://localhost:27018")
+    client  = AsyncIOMotorClient("mongodb://localhost:27018/?directConnection=true")
     database_name = "test_mictlan_db"
     db      = client[database_name]
     client.drop_database(name_or_database=database_name)
@@ -90,7 +90,7 @@ async def user_service():
 
 @pytest_asyncio.fixture
 async def scope_service():
-    client  = AsyncIOMotorClient("mongodb://localhost:27018")
+    client  = AsyncIOMotorClient("mongodb://localhost:27018/?directConnection=true")
     db      = client["test_mictlan_db"]
     # client.drop_database()
     # for col_name in [CollectionNames.SCOPES_COLLECTION_NAME,
@@ -117,7 +117,7 @@ async def scope_service():
 
 @pytest_asyncio.fixture
 async def license_service():
-    client  = AsyncIOMotorClient("mongodb://localhost:27018")
+    client  = AsyncIOMotorClient("mongodb://localhost:27018/?directConnection=true")
     db      = client["test_mictlan_db"]
     # client.drop_database()
     # for col_name in [CollectionNames.LICENSES_COLLECTION_NAME]:

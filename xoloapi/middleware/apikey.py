@@ -19,6 +19,17 @@ log = Log(
 )
 
 
+def _platform_permission_suffix(request: Request) -> str:
+    """Classify non-mutating queries that use POST bodies as read operations."""
+    if request.method in {"GET", "HEAD", "OPTIONS"}:
+        return "READ"
+    if request.method == "POST" and request.url.path.rsplit("/", 1)[-1] in {
+        "check", "evaluate", "has-role",
+    }:
+        return "READ"
+    return "MANAGE"
+
+
 def _get_apikey_service() -> APIKeyService:
     return APIKeyService(
         repository=MongoAPIKeyRepository(
@@ -44,9 +55,28 @@ def require_api_key(scope: str)->APIKey:
     """
     async def _dependency(
         request: Request,
-        x_api_key: str           = Header(..., alias="X-API-Key"),
+        x_api_key: str | None    = Header(None, alias="X-API-Key"),
         service:   APIKeyService = Depends(_get_apikey_service),
-    ) -> APIKey:
+    ) -> APIKey | None:
+        if request.cookies.get(Cfg.XOLO_PLATFORM_SESSION_COOKIE_NAME):
+            from xoloapi.platform_users.dependencies import authorize_platform_request
+            from xoloapi.platform_users.domain.value_objects import PlatformPermission
+
+            area = scope.upper()
+            suffix = _platform_permission_suffix(request)
+            try:
+                permission = PlatformPermission[f"{area}_{suffix}"]
+            except KeyError:
+                raise HTTPException(status_code=403, detail="Platform session cannot access this API scope")
+            user = await authorize_platform_request(request)
+            if user.must_change_password:
+                raise HTTPException(status_code=403, detail="Password change required")
+            account_id = request.path_params.get("account_id")
+            if not user.can(permission, account_id):
+                raise HTTPException(status_code=403, detail=f"Missing platform permission: {permission.value}")
+            return None
+        if not x_api_key:
+            raise HTTPException(status_code=401, detail="X-API-Key or platform session required")
         account_id = request.path_params.get("account_id")
         result = await service.validate(raw_key=x_api_key, required_scope=scope)
         if result.is_err:
@@ -76,19 +106,100 @@ def require_api_key(scope: str)->APIKey:
     return _dependency
 
 
+def require_any_api_key(*scopes: str):
+    """Authorize when at least one of the supplied scopes is available."""
+    async def _dependency(
+        request: Request,
+        x_api_key: str | None = Header(None, alias="X-API-Key"),
+        service: APIKeyService = Depends(_get_apikey_service),
+    ):
+        if request.cookies.get(Cfg.XOLO_PLATFORM_SESSION_COOKIE_NAME):
+            from xoloapi.platform_users.dependencies import authorize_platform_request
+            from xoloapi.platform_users.domain.value_objects import PlatformPermission
+            user = await authorize_platform_request(request)
+            if user.must_change_password:
+                raise HTTPException(status_code=403, detail="Password change required")
+            account_id = request.path_params.get("account_id")
+            permissions = []
+            for scope in scopes:
+                try:
+                    permissions.append(PlatformPermission[f"{scope.upper()}_READ"])
+                except KeyError:
+                    pass
+            if not any(user.can(permission, account_id) for permission in permissions):
+                raise HTTPException(status_code=403, detail="Missing a permitted read scope")
+            return None
+        if not x_api_key:
+            raise HTTPException(status_code=401, detail="X-API-Key or platform session required")
+        last_error = None
+        for scope in scopes:
+            result = await service.validate(x_api_key, scope)
+            if result.is_ok:
+                api_key = result.unwrap()
+                if api_key.account_id != request.path_params.get("account_id"):
+                    raise AccessDeniedError("API key does not belong to the requested account").to_http_exception()
+                return api_key
+            last_error = result.unwrap_err()
+        raise last_error.to_http_exception()
+    return _dependency
+
+
+def require_service_api_key(scope: str):
+    """Require an explicitly service-enabled account API key.
+
+    SERVICE is checked separately from the route scope so legacy ALL keys do
+    not gain service authority. The key must also belong to the account in the
+    request path.
+    """
+    async def _dependency(
+        request: Request,
+        x_api_key: str = Header(..., alias="X-API-Key"),
+        service: APIKeyService = Depends(_get_apikey_service),
+    ) -> APIKey:
+        result = await service.validate(raw_key=x_api_key, required_scope="service")
+        if result.is_err:
+            error = result.unwrap_err()
+            level = log.error if getattr(error, "status_code", 500) >= 500 else log.warning
+            level(build_log_payload("middleware.apikey.service_validate.error", error=error, required_scope=scope))
+            raise error.to_http_exception()
+
+        api_key = result.unwrap()
+        if not api_key.allows(scope):
+            error = AccessDeniedError(
+                f"API key does not have required scope '{scope}'",
+                metadata={"required_scope": scope, "key_id": api_key.key_id},
+            )
+            log.warning(build_log_payload("middleware.apikey.service_scope.error", error=error, required_scope=scope, key_id=api_key.key_id))
+            raise error.to_http_exception()
+
+        account_id = request.path_params.get("account_id")
+        if account_id is not None and api_key.account_id != account_id:
+            error = AccessDeniedError(
+                "API key does not belong to the requested account",
+                metadata={"account_id": account_id, "key_account_id": api_key.account_id},
+            )
+            log.warning(build_log_payload("middleware.apikey.service_account_mismatch", error=error, required_scope=scope, key_id=api_key.key_id, account_id=account_id))
+            raise error.to_http_exception()
+
+        log.info(build_log_payload("middleware.apikey.service_validate", required_scope=scope, key_id=api_key.key_id, account_id=account_id))
+        return api_key
+
+    return _dependency
+
+
 def require_admin_or_api_key(scope: str):
-    """Factory that returns a FastAPI dependency accepting admin token, API key, or admin UI session.
+    """Accept an emergency admin token, scoped API key, or platform session.
     
     Tries in order:
     1. Admin token (X-Admin-Token header)
     2. API key (X-API-Key header)
-    3. Admin UI session cookie
+    3. Permissioned platform session cookie
     
     At least one must be valid.
     
     The API key is validated for the specified scope and account.
     
-    Returns the API key if provided, None if admin token or session was used.
+    Returns the API key if provided, otherwise ``None``.
     """
     async def _dependency(
         request: Request,
@@ -96,17 +207,39 @@ def require_admin_or_api_key(scope: str):
         x_api_key: str | None = Header(None, alias="X-API-Key"),
         service: APIKeyService = Depends(_get_apikey_service),
     ) -> APIKey | None:
-        from xoloapi.middleware.admin import is_valid_admin_token, _get_admin_ui_session
+        from xoloapi.middleware.admin import is_valid_admin_token
         
         # Try admin token first
         if x_admin_token and is_valid_admin_token(x_admin_token):
             log.debug(build_log_payload("middleware.admin_or_apikey.authorize_admin", required_scope=scope))
             return None  # Admin doesn't need API key info
-        
-        # Try admin UI session
-        session = _get_admin_ui_session(request)
-        if session is not None:
-            log.debug(build_log_payload("middleware.admin_or_apikey.authorize_admin_session", required_scope=scope))
+
+        # Browser console sessions use explicit, account-scoped permissions.
+        if request.cookies.get(Cfg.XOLO_PLATFORM_SESSION_COOKIE_NAME):
+            from xoloapi.platform_users.dependencies import authorize_platform_request
+            from xoloapi.platform_users.domain.value_objects import PlatformPermission
+
+            area = {
+                "scopes": "SCOPES",
+                "licenses": "LICENSES",
+                "users": "USERS",
+                "acl": "ACL",
+                "groups": "GROUPS",
+                "rbac": "RBAC",
+                "abac": "ABAC",
+                "ngac": "NGAC",
+                "audit": "AUDIT",
+            }.get(scope)
+            if area is None:
+                raise HTTPException(status_code=403, detail="Platform session cannot access this API scope")
+            suffix = _platform_permission_suffix(request)
+            permission = PlatformPermission[f"{area}_{suffix}"]
+            user = await authorize_platform_request(request)
+            if user.must_change_password:
+                raise HTTPException(status_code=403, detail="Password change required")
+            account_id = request.path_params.get("account_id")
+            if not user.can(permission, account_id):
+                raise HTTPException(status_code=403, detail=f"Missing platform permission: {permission.value}")
             return None
         
         # Fall back to API key

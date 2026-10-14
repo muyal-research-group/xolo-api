@@ -7,7 +7,7 @@ import xoloapi.config as Cfg
 from xoloapi.acl.domain.aggregates import AccessGrant, ResourcePolicy
 from xoloapi.acl.domain.repositories import IResourcePolicyRepository
 from xoloapi.acl.domain.value_objects import Permission, Principal, PrincipalType
-from xoloapi.errors.base import DatabaseError, XoloException
+from xoloapi.errors.base import ConflictError, DatabaseError, XoloException
 from xoloapi.log.format import build_log_payload
 
 log = Log(
@@ -52,6 +52,16 @@ class MongoResourcePolicyRepository(IResourcePolicyRepository):
 
     def __init__(self, db: AsyncIOMotorDatabase, collection_name: str):
         self.col = db[collection_name]
+
+    async def create(self, policy: ResourcePolicy) -> Result[ResourcePolicy, XoloException]:
+        try:
+            await self.col.insert_one(_policy_to_doc(policy))
+            return Ok(policy)
+        except Exception as e:
+            if getattr(e, "code", None) == 11000:
+                return Err(ConflictError("Resource policy already exists"))
+            log.error(build_log_payload("acl.resource_policy.create.error", error=e, resource_id=policy.resource_id))
+            return Err(DatabaseError(f"Failed to create resource policy '{policy.resource_id}'", cause=e))
 
     async def list_all(self, account_id: str) -> Result[list[ResourcePolicy], XoloException]:
         try:

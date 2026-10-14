@@ -102,6 +102,22 @@ async def test_get_node_404(ngac_client: AsyncClient):
     assert res.status_code == 404
 
 
+# ── PATCH /ngac/nodes/{node_id} ───────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_update_node_200(ngac_client: AsyncClient):
+    node_id = (await ngac_client.post(_path("/nodes"), json=_node_payload("Drafts", "object_attribute"))).json()["node_id"]
+
+    res = await ngac_client.patch(
+        _path(f"/nodes/{node_id}"),
+        json={"name": "Published", "properties": {"retention": "7y"}},
+    )
+
+    assert res.status_code == 200
+    assert res.json()["name"] == "Published"
+    assert res.json()["properties"] == {"retention": "7y"}
+
+
 # ── DELETE /ngac/nodes/{node_id} ───────────────────────────────────────────
 
 @pytest.mark.asyncio

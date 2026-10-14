@@ -7,4 +7,7 @@ from xoloapi.abac import abac_router
 from xoloapi.ngac import ngac_router
 from xoloapi.apikeys.controller import router as apikeys_router
 from xoloapi.rbac.controller import router as rbac_router
-from xoloapi.admin_ui import admin_ui_router
+from xoloapi.platform_users import platform_users_router
+from xoloapi.groups import groups_router
+from xoloapi.audit import audit_router
+from xoloapi.notifications import notifications_router

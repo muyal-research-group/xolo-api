@@ -21,7 +21,7 @@ from xoloapi.abac.application.abac_service import ABACService
 from xoloapi.abac.infrastructure.mongo_abac_repository import MongoABACRepository
 from xoloapi.db.constants import CollectionNames
 
-_MONGO_URI  = "mongodb://localhost:27018"
+_MONGO_URI  = "mongodb://localhost:27018/?directConnection=true"
 _DB_NAME    = "xolo_test_abac"
 _COLLECTION = "abac_policies"
 ACCOUNT_ID  = "acc-abac"

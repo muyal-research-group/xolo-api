@@ -1,6 +1,6 @@
 from __future__ import annotations
 import datetime as DT
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from xoloapi.ngac.domain.value_objects import NodeType
@@ -13,7 +13,12 @@ class NGACNode(BaseModel):
     name:       str
     properties: Dict[str, str] = Field(default_factory=dict)
     owner_id:   str = ""
+    user_id: Optional[str] = None
+    resource_id: Optional[str] = None
     created_at: DT.datetime = Field(
+        default_factory=lambda: DT.datetime.now(DT.timezone.utc)
+    )
+    updated_at: DT.datetime = Field(
         default_factory=lambda: DT.datetime.now(DT.timezone.utc)
     )
 

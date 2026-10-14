@@ -1,4 +1,5 @@
 from typing import Tuple
+import re
 from uuid import uuid4
 import humanfriendly as HF
 from motor.motor_asyncio import AsyncIOMotorCollection
@@ -134,6 +135,7 @@ class MongoUsersRepository(IUsersRepository):
             )
             payload = doc.model_dump()
             payload["account_id"] = account_id
+            payload["normalized_username"] = user.username.strip().casefold()
             await self.collection.insert_one(payload)
             return Ok(user_key)
         except Exception as e:
@@ -156,7 +158,14 @@ class MongoUsersRepository(IUsersRepository):
 
     async def find_by_username(self, account_id: str, username: str) -> Option[User]:
         try:
-            doc = await self.collection.find_one(filter={"account_id": account_id, "username": username})
+            normalized = username.strip().casefold()
+            doc = await self.collection.find_one(filter={
+                "account_id": account_id,
+                "$or": [
+                    {"normalized_username": normalized},
+                    {"username": {"$regex": f"^{re.escape(username.strip())}$", "$options": "i"}},
+                ],
+            })
             if doc is None:
                 return NONE
             doc.pop("account_id", None)
@@ -164,6 +173,47 @@ class MongoUsersRepository(IUsersRepository):
         except Exception as e:
             log.error(build_log_payload("users.repository.find_by_username.error", error=e, username=username))
             raise
+
+    async def search_references(
+        self, account_id: str, search: str, limit: int = 3
+    ) -> list[tuple[User, str]]:
+        """Return deterministic, account-scoped username matches.
+
+        MongoDB can use the normalized username index for exact/prefix work;
+        the escaped substring expression also supports the requested contains
+        autocomplete semantics without treating operator input as a regex.
+        """
+        needle = search.strip().casefold()
+        if not needle:
+            return []
+        expression = re.escape(needle)
+        rows: list[tuple[tuple, User, str]] = []
+        cursor = self.collection.find(
+            {
+                "account_id": account_id,
+                "$or": [
+                    {"normalized_username": {"$regex": expression}},
+                    {"username": {"$regex": expression, "$options": "i"}},
+                ],
+            }
+        )
+        async for raw in cursor:
+            raw.pop("account_id", None)
+            raw.pop("normalized_username", None)
+            user = User(**raw)
+            username = user.username.casefold()
+            position = username.find(needle)
+            if username == needle:
+                match_type, tier = "exact", 0
+            elif username.startswith(needle):
+                match_type, tier = "prefix", 1
+            elif any(part.startswith(needle) for part in re.split(r"[^\w]+", username) if part):
+                match_type, tier = "word_prefix", 2
+            else:
+                match_type, tier = "contains", 3
+            rows.append(((tier, position, len(username), username, user.key), user, match_type))
+        rows.sort(key=lambda item: item[0])
+        return [(user, match_type) for _, user, match_type in rows[: max(1, min(limit, 20))]]
 
     async def find_by_email(self, account_id: str, email: str) -> Option[User]:
         try:

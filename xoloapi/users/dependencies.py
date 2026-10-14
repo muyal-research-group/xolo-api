@@ -1,4 +1,5 @@
 from fastapi import Depends, HTTPException
+from option import Err, Ok
 
 import xoloapi.config as Cfg
 from xoloapi.db import get_collection, get_database
@@ -12,6 +13,7 @@ from xoloapi.users.infrastructure.cloudflare_users_mailer import CloudflareUsers
 from xoloapi.users.infrastructure.mongo_repository import MongoUsersRepository
 from xoloapi.users.infrastructure.noop_users_mailer import NoOpUsersMailer
 from xoloapi.users.infrastructure.smtp_users_mailer import SMTPUsersMailer
+from xoloapi.errors.base import InternalError, NotFoundError
 
 
 def get_users_repository() -> MongoUsersRepository:
@@ -29,6 +31,29 @@ def get_cache_redis():
     return cache
 
 
+class AuthUserLookupService:
+    """Minimal user lookup used while validating bearer tokens."""
+
+    def __init__(self, repository: MongoUsersRepository):
+        self.repository = repository
+
+    async def get_by_id(self, user_id: str, account_id: str | None = None):
+        try:
+            user = await self.repository.find_by_id(user_id, account_id=account_id)
+            if user.is_none:
+                return Err(NotFoundError("User", user_id))
+            return Ok(user.unwrap())
+        except Exception as error:
+            return Err(InternalError("Failed to look up authenticated user", cause=error))
+
+
+def get_auth_users_service() -> AuthUserLookupService:
+    # This lookup deliberately has no Redis, mailer, or authorization-policy
+    # dependencies. Missing credentials can therefore be rejected before any
+    # unrelated infrastructure is required.
+    return AuthUserLookupService(repository=get_users_repository())
+
+
 def get_users_mailer():
     provider = Cfg.XOLO_EMAIL_PROVIDER
     if provider == "smtp":
@@ -44,6 +69,7 @@ def get_users_service(cache=Depends(get_cache_redis), users_mailer=Depends(get_u
     from xoloapi.acl.infrastructure.mongo_resource_policy_repository import MongoResourcePolicyRepository
     from xoloapi.groups.infrastructure.mongo_security_group_repository import MongoSecurityGroupRepository
     from xoloapi.ngac.infrastructure.mongo_ngac_repository import MongoNGACRepository
+    from xoloapi.rbac.infrastructure.mongo_role_assignment_repository import MongoRoleAssignmentRepository
 
     users_collection = get_collection(CollectionNames.USERS_COLLECTION_NAME)
     users_repository = MongoUsersRepository(collection=users_collection, cache_redis=cache)
@@ -71,13 +97,16 @@ def get_users_service(cache=Depends(get_cache_redis), users_mailer=Depends(get_u
         ),
         groups_repository=MongoSecurityGroupRepository(
             db=db,
-            groups_col=CollectionNames.ACL_GROUPS_COLLECTION_NAME,
-            members_col=CollectionNames.ACL_GROUP_MEMBERS_COLLECTION_NAME,
+            groups_col=CollectionNames.SECURITY_GROUPS_COLLECTION_NAME,
+            members_col=CollectionNames.GROUP_MEMBERS_COLLECTION_NAME,
         ),
         ngac_repository=MongoNGACRepository(
             db=db,
             nodes_col=CollectionNames.NGAC_NODES_COLLECTION_NAME,
             assignments_col=CollectionNames.NGAC_ASSIGNMENTS_COLLECTION_NAME,
             associations_col=CollectionNames.NGAC_ASSOCIATIONS_COLLECTION_NAME,
+        ),
+        rbac_assignment_repository=MongoRoleAssignmentRepository(
+            db=db, collection_name=CollectionNames.RBAC_ASSIGNMENTS_COLLECTION_NAME,
         ),
     )

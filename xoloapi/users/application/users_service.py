@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
+import hmac
 import secrets
 import time as T
 from typing import Any
@@ -42,6 +43,7 @@ class UsersService:
         acl_repository: Any = None,
         groups_repository: Any = None,
         ngac_repository: Any = None,
+        rbac_assignment_repository: Any = None,
     ):
         self.repository = repository
         self.scopes_repository = scopes_repository
@@ -51,6 +53,7 @@ class UsersService:
         self.acl_repository = acl_repository
         self.groups_repository = groups_repository
         self.ngac_repository = ngac_repository
+        self.rbac_assignment_repository = rbac_assignment_repository
 
     @staticmethod
     def _hash_reset_token(token: str) -> str:
@@ -294,6 +297,16 @@ class UsersService:
                 return Err(error)
 
             user = maybe_user.unwrap()
+            if self.groups_repository is not None:
+                owned = await self.groups_repository.find_owned_by_user(account_id, user.key)
+                if owned.is_err:
+                    return Err(owned.unwrap_err())
+                if owned.unwrap():
+                    from xoloapi.errors.base import ConflictError
+                    return Err(ConflictError(
+                        "User owns groups that must be transferred before deletion",
+                        metadata={"group_ids": [group.group_id for group in owned.unwrap()]},
+                    ))
             licenses_result = await self.licenses_service.repository.delete_all_by_username(account_id=account_id, username=normalized_username)
             if licenses_result.is_err:
                 log.error(build_log_payload("users.delete.error", started_at=start_time, error=licenses_result.unwrap_err(), username=normalized_username, user_id=user.key))
@@ -331,6 +344,11 @@ class UsersService:
                 if ngac_result.is_err:
                     log.error(build_log_payload("users.delete.error", started_at=start_time, error=ngac_result.unwrap_err(), username=normalized_username, user_id=user.key))
                     return Err(ngac_result.unwrap_err())
+
+            if self.rbac_assignment_repository is not None:
+                rbac_result = await self.rbac_assignment_repository.delete_by_subject(account_id, user.key)
+                if rbac_result.is_err:
+                    return Err(rbac_result.unwrap_err())
 
             delete_result = await self.repository.delete_by_id(user_id=user.key, account_id=account_id)
             if delete_result.is_err:
@@ -464,6 +482,13 @@ class UsersService:
             new_password = XoloUtils.pbkdf2(password=dto.password)
             updated_result = await self.repository.update_password(account_id=account_id, username=_username, password=new_password)
             if updated_result.is_ok:
+                revoke_result = await self.repository.delete_access_token(account_id=account_id, username=_username)
+                if revoke_result.is_err:
+                    log.warning(build_log_payload(
+                        "users.password_update.session_revoke_error",
+                        error=revoke_result.unwrap_err(),
+                        username=_username,
+                    ))
                 log.info(build_log_payload("users.password_update", started_at=start_time, username=_username))
                 return Ok(DTO.UpdateUserPasswordResponseDTO(ok=updated_result.unwrap()))
             log.error(build_log_payload("users.password_update.error", started_at=start_time, error=updated_result.unwrap_err(), username=_username))
@@ -780,3 +805,49 @@ class UsersService:
         except Exception as e:
             log.error(build_log_payload("users.verify.error", started_at=start_time, error=e, username=getattr(dto, "username", None)))
             return Err(EX.ServerError(raw_detail=str(e)))
+
+    async def introspect_session(
+        self,
+        account_id: str,
+        access_token: str,
+        temporal_secret: str,
+    ) -> Result[DTO.UserDTO, EX.XError]:
+        """Validate the signed token and its active Redis-backed session."""
+        start_time = T.time()
+        try:
+            payload_result = Security.decode_access_token(
+                token=access_token,
+                secret_key=temporal_secret,
+            )
+            if payload_result.is_err:
+                return Err(EX.Unauthorized(raw_detail="Invalid or expired access token"))
+            claims = payload_result.unwrap()
+            if claims.get("aid") != account_id:
+                return Err(EX.AccessDenied(raw_detail="Token does not belong to this account"))
+
+            user_id = claims.get("sub")
+            username = claims.get("uid2")
+            if not user_id or not username:
+                return Err(EX.Unauthorized(raw_detail="Session token is missing its user identity"))
+
+            stored_result = await self.repository.get_access_token(account_id, username)
+            if stored_result.is_err:
+                return Err(EX.Unauthorized(raw_detail="Unable to validate the active session"))
+            stored = stored_result.unwrap()
+            if stored.is_none:
+                return Err(EX.Unauthorized(raw_detail="Session is no longer active"))
+            stored_token, stored_secret = stored.unwrap()
+            if not hmac.compare_digest(stored_token, access_token) or not hmac.compare_digest(stored_secret, temporal_secret):
+                return Err(EX.Unauthorized(raw_detail="Session credentials do not match the active session"))
+
+            user_result = await self.get_by_id(user_id=user_id, account_id=account_id)
+            if user_result.is_err:
+                return Err(user_result.unwrap_err())
+            user = user_result.unwrap()
+            if user.disabled:
+                return Err(EX.InactiveUserError(user_id=user.key))
+            log.info(build_log_payload("users.session.introspect", started_at=start_time, user_id=user.key, username=user.username))
+            return Ok(user)
+        except Exception as e:
+            log.warning(build_log_payload("users.session.introspect.error", started_at=start_time, error=e))
+            return Err(EX.Unauthorized(raw_detail="Invalid session credentials"))

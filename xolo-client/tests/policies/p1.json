@@ -1,0 +1,23 @@
+  {
+    "policy_id": "P1",
+    "description": "Médicos pueden consultar expedientes tanto en hospital como desde casa.",
+    "effect": "permit",
+    "events": [
+      {
+        "event_id": "P1E1",
+        "subject": {"attribute": "rol", "value": "Medico"},
+        "asset": {"attribute": "recurso", "value": "Expediente"},
+        "space": {"attribute": "ubicacion", "value": "Hospital"},
+        "time": {"attribute": "rango_horario", "value": "08:00-20:00"},
+        "action": {"attribute": "accion", "value": "lectura"}
+      },
+      {
+        "event_id": "P1E2",
+        "subject": {"attribute": "rol", "value": "Medico"},
+        "asset": {"attribute": "recurso", "value": "Expediente"},
+        "space": {"attribute": "ubicacion", "value": "Casa"},
+        "time": {"attribute": "rango_horario", "value": "20:00-23:59"},
+        "action": {"attribute": "accion", "value": "lectura"}
+      }
+    ]
+  }

@@ -19,12 +19,12 @@ bash build.sh
 You can optionally pass an image name and push flag:
 
 ```bash
-bash build.sh my-registry/xolo-api:0.1.0a0 1
+bash build.sh my-registry/xolo-api:0.1.0a5 1
 ```
 
 ## Full Docker deployment
 
-The repository includes a full stack `docker-compose.yml`.
+The repository includes a full stack `docker-compose.yml` with MongoDB, Redis, the API, and the Nuxt console.
 
 Start it with:
 
@@ -38,6 +38,8 @@ The script:
 2. creates the Docker network if needed
 3. runs `docker compose up -d --build`
 
+The console publishes port `3001` on the host by default (mapped to port `3000` inside the container). Its browser-side API URL defaults to `http://localhost:10000/api/v4`; override `XOLO_UI_API_BASE` when the API is reachable at another address.
+
 ## Documentation deployment
 
 The repository also includes a GitHub Pages workflow for the Zensical docs site:
@@ -46,7 +48,9 @@ The repository also includes a GitHub Pages workflow for the Zensical docs site:
 - build command: `poetry run zensical build -f zensical.toml`
 - publish target: `site/`
 
-Once GitHub Pages is enabled in the repository settings, pushes to the release branch build and publish the docs automatically.
+Once GitHub Pages is configured to use GitHub Actions, pushes to `main`, `master`, or `v2` build and publish the API site plus the Python client site under `/client/`.
+
+Image and package publishing use component-specific tags. See [Releases](releases.md).
 
 ## Deployment files
 
@@ -73,6 +77,7 @@ MongoDB and Redis are also configured with container healthchecks before the API
 - replace placeholder secrets
 - review `XOLO_JWT_SECRET`
 - review `XOLO_LICENSE_SECRET_KEY`
+- set `XOLO_PLATFORM_BOOTSTRAP_PASSWORD` to a unique value before the first startup
 - set `XOLO_SUPER_ADMIN_TOKENS`
 - configure mail provider credentials
 - confirm MongoDB and Redis authentication posture
@@ -91,10 +96,18 @@ app = FastAPI(
 )
 ```
 
-The admin UI and all routes automatically respect the `root_path`:
+API routes respect the configured `root_path`. Set `NUXT_PUBLIC_API_BASE` (or `XOLO_UI_API_BASE` in Compose) to the externally reachable API prefix used by the browser.
+# MongoDB transaction requirement
 
-- Session cookies are scoped to the root path
-- Template URLs are generated with the root path included
-- All redirects and navigation work correctly
+Authorization v2 uses MongoDB transactions for atomic group membership
+batches. MongoDB must run as a replica set in every environment, including a
+single-node replica set for development. The provided Compose configuration
+starts `xolo-rs` and waits for a writable primary before starting the API.
 
-No additional admin UI configuration is needed—just set `root_path` and everything adapts automatically.
+For an existing deployment, restart MongoDB with a replica-set name, initiate
+the set, confirm `db.hello().isWritablePrimary`, and only then run:
+
+```bash
+poetry run python scripts/migrate_authorization.py --dry-run
+poetry run python scripts/migrate_authorization.py
+```

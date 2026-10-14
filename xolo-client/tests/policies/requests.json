@@ -1,0 +1,143 @@
+[
+    {
+      "subject": {"attribute": "rol", "value": "Medico"},
+      "asset": {"attribute": "recurso", "value": "Expediente"},
+      "space": {"attribute": "ubicacion", "value": "Hospital"},
+      "time": {"attribute": "rango_horario", "value": "10:00"},
+      "action": {"attribute": "accion", "value": "lectura"}
+    },
+    {
+      "subject": {"attribute": "rol", "value": "Especialista"},
+      "asset": {"attribute": "recurso", "value": "Expediente"},
+      "space": {"attribute": "ubicacion", "value": "Casa"},
+      "time": {"attribute": "rango_horario", "value": "22:30"},
+      "action": {"attribute": "accion", "value": "lectura"}
+    },
+    {
+      "subject": {"attribute": "rol", "value": "Enfermera"},
+      "asset": {"attribute": "recurso", "value": "SignosVitales"},
+      "space": {"attribute": "ubicacion", "value": "Hospital"},
+      "time": {"attribute": "rango_horario", "value": "08:30"},
+      "action": {"attribute": "accion", "value": "registro"}
+    },
+    {
+      "subject": {"attribute": "rol", "value": "Enfermera"},
+      "asset": {"attribute": "recurso", "value": "Medicacion"},
+      "space": {"attribute": "ubicacion", "value": "Hospital"},
+      "time": {"attribute": "rango_horario", "value": "09:00"},
+      "action": {"attribute": "accion", "value": "administracion"}
+    },
+    {
+      "subject": {"attribute": "rol", "value": "Enfermera"},
+      "asset": {"attribute": "recurso", "value": "Reportes"},
+      "space": {"attribute": "ubicacion", "value": "Hospital"},
+      "time": {"attribute": "rango_horario", "value": "15:00"},
+      "action": {"attribute": "accion", "value": "registro"}
+    },
+    {
+      "subject": {"attribute": "rol", "value": "Residente"},
+      "asset": {"attribute": "recurso", "value": "HistorialClinico"},
+      "space": {"attribute": "ubicacion", "value": "Hospital"},
+      "time": {"attribute": "rango_horario", "value": "09:00"},
+      "action": {"attribute": "accion", "value": "lectura"}
+    },
+    {
+      "subject": {"attribute": "rol", "value": "Administrativo"},
+      "asset": {"attribute": "recurso", "value": "ReportesFinancieros"},
+      "space": {"attribute": "ubicacion", "value": "OficinaAdministrativa"},
+      "time": {"attribute": "rango_horario", "value": "10:00"},
+      "action": {"attribute": "accion", "value": "lectura"}
+    },
+    {
+      "subject": {"attribute": "rol", "value": "Administrativo"},
+      "asset": {"attribute": "recurso", "value": "Nomina"},
+      "space": {"attribute": "ubicacion", "value": "OficinaAdministrativa"},
+      "time": {"attribute": "rango_horario", "value": "11:00"},
+      "action": {"attribute": "accion", "value": "modificacion"}
+    },
+    {
+      "subject": {"attribute": "rol", "value": "Administrativo"},
+      "asset": {"attribute": "recurso", "value": "CitasMedicas"},
+      "space": {"attribute": "ubicacion", "value": "OficinaAdministrativa"},
+      "time": {"attribute": "rango_horario", "value": "12:00"},
+      "action": {"attribute": "accion", "value": "gestion"}
+    },
+    {
+      "subject": {"attribute": "rol", "value": "Investigador"},
+      "asset": {"attribute": "recurso", "value": "BasesGeneticas"},
+      "space": {"attribute": "ubicacion", "value": "Laboratorio"},
+      "time": {"attribute": "rango_horario", "value": "09:30"},
+      "action": {"attribute": "accion", "value": "lectura"}
+    },
+    {
+        "subject": {"attribute": "rol", "value": "Investigador"},
+        "asset": {"attribute": "recurso", "value": "MuestrasLaboratorio"},
+        "space": {"attribute": "ubicacion", "value": "Laboratorio"},
+        "time": {"attribute": "rango_horario", "value": "10:30"},
+        "action": {"attribute": "accion", "value": "lectura"}
+      },
+      {
+        "subject": {"attribute": "rol", "value": "Investigador"},
+        "asset": {"attribute": "recurso", "value": "ExpedientesExperimentales"},
+        "space": {"attribute": "ubicacion", "value": "Laboratorio"},
+        "time": {"attribute": "rango_horario", "value": "11:00"},
+        "action": {"attribute": "accion", "value": "lectura"}
+      },
+      {
+        "subject": {"attribute": "rol", "value": "Visitante"},
+        "asset": {"attribute": "recurso", "value": "Directorio"},
+        "space": {"attribute": "ubicacion", "value": "Recepcion"},
+        "time": {"attribute": "rango_horario", "value": "9:00"},
+        "action": {"attribute": "accion", "value": "lectura"}
+      },
+      {
+        "subject": {"attribute": "rol", "value": "Visitante"},
+        "asset": {"attribute": "recurso", "value": "Directorio"},
+        "space": {"attribute": "ubicacion", "value": "AreaEspera"},
+        "time": {"attribute": "rango_horario", "value": "10:00"},
+        "action": {"attribute": "accion", "value": "lectura"}
+      },
+      {
+        "subject": {"attribute": "rol", "value": "Paramedico"},
+        "asset": {"attribute": "recurso", "value": "Incidentes"},
+        "space": {"attribute": "ubicacion", "value": "Ambulancia"},
+        "time": {"attribute": "rango_horario", "value": "13:00"},
+        "action": {"attribute": "accion", "value": "registro"}
+      },
+      {
+        "subject": {"attribute": "rol", "value": "Farmaceutico"},
+        "asset": {"attribute": "recurso", "value": "InventarioMedicamentos"},
+        "space": {"attribute": "ubicacion", "value": "Farmacia"},
+        "time": {"attribute": "rango_horario", "value": "10:00"},
+        "action": {"attribute": "accion", "value": "escritura"}
+      },
+      {
+        "subject": {"attribute": "rol", "value": "Farmaceutico"},
+        "asset": {"attribute": "recurso", "value": "LotesMedicamentos"},
+        "space": {"attribute": "ubicacion", "value": "Farmacia"},
+        "time": {"attribute": "rango_horario", "value": "11:00"},
+        "action": {"attribute": "accion", "value": "actualizacion"}
+      },
+      {
+        "subject": {"attribute": "rol", "value": "Farmaceutico"},
+        "asset": {"attribute": "recurso", "value": "EntregasMedicamentos"},
+        "space": {"attribute": "ubicacion", "value": "Farmacia"},
+        "time": {"attribute": "rango_horario", "value": "12:00"},
+        "action": {"attribute": "accion", "value": "registro"}
+      },
+      {
+        "subject": {"attribute": "rol", "value": "Auditor"},
+        "asset": {"attribute": "recurso", "value": "LogsSistema"},
+        "space": {"attribute": "ubicacion", "value": "OficinaAuditoria"},
+        "time": {"attribute": "rango_horario", "value": "10:00"},
+        "action": {"attribute": "accion", "value": "lectura"}
+      },
+      {
+        "subject": {"attribute": "rol", "value": "Director"},
+        "asset": {"attribute": "recurso", "value": "Presupuestos"},
+        "space": {"attribute": "ubicacion", "value": "OficinasCentrales"},
+        "time": {"attribute": "rango_horario", "value": "10:00"},
+        "action": {"attribute": "accion", "value": "aprobacion"}
+      }
+  ]
+  

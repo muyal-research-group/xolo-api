@@ -7,9 +7,10 @@ from xoloapi.log import Log
 import xoloapi.config as Cfg
 from xoloapi.accounts.application.accounts_service import AccountsService
 from xoloapi.accounts.dependencies import get_accounts_service
-from xoloapi.accounts.dto import CreateAccountDTO
+from xoloapi.accounts.dto import CreateAccountDTO, UpdateAccountDTO
 from xoloapi.log.format import build_log_payload
-from xoloapi.middleware.admin import require_admin_token
+from xoloapi.middleware.admin import require_admin_or_platform
+from xoloapi.platform_users.domain.value_objects import PlatformPermission
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 log = Log(
@@ -22,7 +23,7 @@ log = Log(
 
 @router.get("")
 async def list_accounts(
-    _: object = Depends(require_admin_token),
+    actor: object = Depends(require_admin_or_platform(PlatformPermission.ACCOUNTS_READ)),
     service: AccountsService = Depends(get_accounts_service),
 ):
     t1 = T.time()
@@ -32,6 +33,9 @@ async def list_accounts(
         log.error(build_log_payload("accounts.list.error", started_at=t1, error=error))
         raise error.to_http_exception()
     accounts = result.unwrap()
+    if actor is not None and getattr(actor, "role", None) != "admin":
+        allowed = getattr(actor, "allowed_account_ids", set())
+        accounts = [account for account in accounts if account.account_id in allowed]
     log.info(build_log_payload("accounts.list", started_at=t1, account_count=len(accounts)))
     return accounts
 
@@ -39,7 +43,7 @@ async def list_accounts(
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_account(
     dto: CreateAccountDTO,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_admin_or_platform(PlatformPermission.ACCOUNTS_MANAGE)),
     service: AccountsService = Depends(get_accounts_service),
 ):
     t1 = T.time()
@@ -55,7 +59,7 @@ async def create_account(
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(
     account_id: str,
-    _: object = Depends(require_admin_token),
+    _: object = Depends(require_admin_or_platform(PlatformPermission.ACCOUNTS_MANAGE)),
     service: AccountsService = Depends(get_accounts_service),
 ):
     t1 = T.time()
@@ -66,3 +70,16 @@ async def delete_account(
         raise error.to_http_exception()
     log.info(build_log_payload("accounts.delete", started_at=t1, account_id=account_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/{account_id}")
+async def update_account(
+    account_id: str,
+    dto: UpdateAccountDTO,
+    _: object = Depends(require_admin_or_platform(PlatformPermission.ACCOUNTS_MANAGE)),
+    service: AccountsService = Depends(get_accounts_service),
+):
+    result = await service.update_account(account_id, dto)
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    return result.unwrap()

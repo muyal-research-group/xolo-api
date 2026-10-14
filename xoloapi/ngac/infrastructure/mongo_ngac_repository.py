@@ -37,10 +37,39 @@ class MongoNGACRepository(INGACRepository):
             existing = await self._nodes.find_one({"account_id": node.account_id, "node_id": node.node_id})
             if existing:
                 return Err(AlreadyExistsError("NGACNode", node.node_id))
+            if node.user_id:
+                bound = await self._nodes.find_one({"account_id": node.account_id, "user_id": node.user_id})
+                if bound:
+                    return Err(AlreadyExistsError("NGAC user binding", node.user_id))
+            if node.resource_id:
+                bound = await self._nodes.find_one({"account_id": node.account_id, "resource_id": node.resource_id})
+                if bound:
+                    return Err(AlreadyExistsError("NGAC resource binding", node.resource_id))
             await self._nodes.insert_one(node.model_dump())
             return Ok(node.node_id)
         except Exception as e:
             log.error(build_log_payload("ngac.repository.create_node.error", error=e, node_id=node.node_id, node_type=node.node_type))
+            return Err(DatabaseError(cause=e))
+
+    async def update_node(self, node: NGACNode) -> Result[bool, XoloException]:
+        try:
+            if node.user_id:
+                bound = await self._nodes.find_one({"account_id": node.account_id, "user_id": node.user_id, "node_id": {"$ne": node.node_id}})
+                if bound:
+                    return Err(AlreadyExistsError("NGAC user binding", node.user_id))
+            if node.resource_id:
+                bound = await self._nodes.find_one({"account_id": node.account_id, "resource_id": node.resource_id, "node_id": {"$ne": node.node_id}})
+                if bound:
+                    return Err(AlreadyExistsError("NGAC resource binding", node.resource_id))
+            result = await self._nodes.replace_one(
+                {"account_id": node.account_id, "node_id": node.node_id},
+                node.model_dump(),
+            )
+            if result.matched_count == 0:
+                return Err(NotFoundError("NGACNode", node.node_id))
+            return Ok(True)
+        except Exception as e:
+            log.error(build_log_payload("ngac.repository.update_node.error", error=e, node_id=node.node_id))
             return Err(DatabaseError(cause=e))
 
     async def find_node(self, account_id: str, node_id: str) -> Result[object, XoloException]:
@@ -154,18 +183,29 @@ class MongoNGACRepository(INGACRepository):
 
     async def create_association(self, assoc: NGACAssociation) -> Result[str, XoloException]:
         try:
-            await self._associations.update_one(
-                {
-                    "account_id":          assoc.account_id,
-                    "user_attribute_id":   assoc.user_attribute_id,
-                    "object_attribute_id": assoc.object_attribute_id,
-                },
-                {"$set": assoc.model_dump()},
-                upsert=True,
-            )
+            existing = await self._associations.find_one({
+                "account_id": assoc.account_id,
+                "user_attribute_id": assoc.user_attribute_id,
+                "object_attribute_id": assoc.object_attribute_id,
+            })
+            if existing:
+                return Err(AlreadyExistsError("NGACAssociation", f"{assoc.user_attribute_id}->{assoc.object_attribute_id}"))
+            await self._associations.insert_one(assoc.model_dump())
             return Ok(assoc.association_id)
         except Exception as e:
             log.error(build_log_payload("ngac.repository.create_association.error", error=e, association_id=assoc.association_id, user_attribute_id=assoc.user_attribute_id, object_attribute_id=assoc.object_attribute_id))
+            return Err(DatabaseError(cause=e))
+
+    async def update_association(self, assoc: NGACAssociation) -> Result[bool, XoloException]:
+        try:
+            result = await self._associations.replace_one(
+                {"account_id": assoc.account_id, "association_id": assoc.association_id},
+                assoc.model_dump(),
+            )
+            if result.matched_count == 0:
+                return Err(NotFoundError("NGACAssociation", assoc.association_id))
+            return Ok(True)
+        except Exception as e:
             return Err(DatabaseError(cause=e))
 
     async def find_association(self, account_id: str, association_id: str) -> Result[object, XoloException]:

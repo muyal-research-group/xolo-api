@@ -96,6 +96,27 @@ async def test_get_policy_404(abac_client: AsyncClient):
     assert res.status_code == 404
 
 
+# ── PUT /abac/policies/{id} ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_update_policy_200(abac_client: AsyncClient):
+    policy_id = (await abac_client.post(_account_path("/policies"), json=_ALLOW_PAYLOAD)).json()["policy_id"]
+    updated_payload = {
+        "name": "Teachers cannot delete grades",
+        "effect": "DENY",
+        "events": [{"subject": "Teacher", "resource": "Grades", "action": "delete"}],
+    }
+
+    res = await abac_client.put(_account_path(f"/policies/{policy_id}"), json=updated_payload)
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["policy_id"] == policy_id
+    assert body["name"] == updated_payload["name"]
+    assert body["effect"] == "DENY"
+    assert body["events"][0]["action"]["value"] == "delete"
+
+
 # ── DELETE /abac/policies/{id} ─────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -192,10 +213,10 @@ async def test_evaluate_with_time_window(abac_client: AsyncClient):
     })
 
     inside = await abac_client.post(_account_path("/evaluate"), json={
-        "subject": "Doctor", "resource": "Chart", "action": "read", "time": "2026-06-15T12:00"
+        "subject": "Doctor", "resource": "Chart", "action": "read", "time": "2026-06-15T12:00Z"
     })
     outside = await abac_client.post(_account_path("/evaluate"), json={
-        "subject": "Doctor", "resource": "Chart", "action": "read", "time": "2027-01-01T20:00"
+        "subject": "Doctor", "resource": "Chart", "action": "read", "time": "2027-01-01T20:00Z"
     })
 
     assert inside.json()["allowed"] is True

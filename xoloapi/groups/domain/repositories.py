@@ -22,9 +22,9 @@ class ISecurityGroupRepository(ABC):
 
     @abstractmethod
     async def find_groups_for_user(
-        self, account_id: str, user_id: str
+        self, account_id: str, user_id: str, include_disabled: bool = False
     ) -> Result[list[SecurityGroup], XoloException]:
-        """Groups the user owns OR is a member of."""
+        """Groups where the user is an explicit member."""
         ...
 
     @abstractmethod
@@ -48,8 +48,18 @@ class ISecurityGroupRepository(ABC):
     ) -> Result[bool, XoloException]: ...
 
     @abstractmethod
+    async def add_members_atomic(
+        self, account_id: str, group_id: str, user_ids: list[str]
+    ) -> Result[bool, XoloException]: ...
+
+    @abstractmethod
     async def remove_member(
         self, account_id: str, group_id: str, user_id: str
+    ) -> Result[bool, XoloException]: ...
+
+    @abstractmethod
+    async def remove_members_atomic(
+        self, account_id: str, group_id: str, user_ids: list[str]
     ) -> Result[bool, XoloException]: ...
 
     @abstractmethod
@@ -66,3 +76,8 @@ class ISecurityGroupRepository(ABC):
     async def delete_all_for_user(
         self, account_id: str, user_id: str
     ) -> Result[int, XoloException]: ...
+
+    @abstractmethod
+    async def find_owned_by_user(
+        self, account_id: str, user_id: str
+    ) -> Result[list[SecurityGroup], XoloException]: ...

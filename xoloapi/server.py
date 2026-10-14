@@ -3,8 +3,11 @@ import time as T
 #
 from xoloapi.log import Log
 # 
-from xoloapi.db import connect_to_mongo,close_mongo_connection
-from xoloapi.controllers import accounts_router,licenses_router,scopes_router,users_router,acl_router,abac_router,ngac_router,apikeys_router,rbac_router,admin_ui_router
+from xoloapi.db import connect_to_mongo, close_mongo_connection, get_collection
+from xoloapi.controllers import accounts_router,licenses_router,scopes_router,users_router,acl_router,abac_router,ngac_router,apikeys_router,rbac_router,platform_users_router,groups_router,audit_router,notifications_router
+from xoloapi.db.constants import CollectionNames
+from xoloapi.platform_users.application import PlatformUserService
+from xoloapi.platform_users.infrastructure.mongo_repository import MongoPlatformUserRepository
 # 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -13,6 +16,7 @@ from fastapi.openapi.utils import get_openapi
 from xoloapi.db.cache import connect_to_redis, close_redis_connection
 import xoloapi.config  as Cfg
 from xoloapi.log.format import build_log_payload
+from xoloapi.audit.middleware import capture_authorization_audit
 
 log            = Log(
         name                   = Cfg.XOLO_LOG_NAME,
@@ -22,10 +26,6 @@ log            = Log(
         path                   = Cfg.XOLO_LOG_PATH
 )
 
-
-
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     startup_time = T.time()
@@ -33,6 +33,22 @@ async def lifespan(app: FastAPI):
     try:
         await connect_to_mongo()
         await connect_to_redis()
+        platform_service = PlatformUserService(
+            MongoPlatformUserRepository(
+                get_collection(CollectionNames.PLATFORM_USERS_COLLECTION_NAME)
+            )
+        )
+        bootstrap = await platform_service.bootstrap(
+            Cfg.XOLO_PLATFORM_BOOTSTRAP_USERNAME,
+            Cfg.XOLO_PLATFORM_BOOTSTRAP_PASSWORD,
+        )
+        if bootstrap.is_err:
+            raise bootstrap.unwrap_err()
+        if bootstrap.unwrap() is not None:
+            log.info(build_log_payload(
+                "platform.bootstrap.created",
+                username=bootstrap.unwrap().username,
+            ))
         log.info(build_log_payload("runtime.app.started", started_at=startup_time))
         yield
     finally:
@@ -51,8 +67,6 @@ app = FastAPI(
 
 
 
-
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins     = Cfg.XOLO_CORS_ALLOW_ORIGINS,
@@ -60,6 +74,8 @@ app.add_middleware(
     allow_methods     = Cfg.XOLO_CORS_ALLOW_METHODS,
     allow_headers     = Cfg.XOLO_CORS_ALLOW_HEADERS
 )
+
+app.middleware("http")(capture_authorization_audit)
 
 def generate_openapi():
     if app.openapi_schema:
@@ -87,7 +103,9 @@ app.include_router(abac_router,    prefix="/api/v4", tags=["abac"])
 app.include_router(ngac_router,    prefix="/api/v4", tags=["ngac"])
 app.include_router(apikeys_router, prefix="/api/v4", tags=["apikeys"])
 app.include_router(rbac_router,    prefix="/api/v4", tags=["rbac"])
-app.include_router(admin_ui_router)
-
+app.include_router(groups_router,  prefix="/api/v4", tags=["groups"])
+app.include_router(audit_router,   prefix="/api/v4", tags=["authorization-audit"])
+app.include_router(notifications_router, prefix="/api/v4", tags=["notifications"])
+app.include_router(platform_users_router, prefix="/api/v4", tags=["platform"])
 
 

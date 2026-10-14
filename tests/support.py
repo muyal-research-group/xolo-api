@@ -14,7 +14,7 @@ from xoloapi.db.cache import close_redis_connection, connect_to_redis
 from xoloapi.db.constants import CollectionNames
 from xoloapi.server import app
 
-MONGO_URI = "mongodb://localhost:27018"
+MONGO_URI = "mongodb://localhost:27018/?directConnection=true"
 REDIS_URI = "redis://localhost:6379/15"
 
 

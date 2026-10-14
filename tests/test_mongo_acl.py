@@ -23,7 +23,7 @@ async def acl_service()->AsyncGenerator[XoloACL, None]:
     # client = AsyncMongoMockClient()
     # db = client["test_mictlan_db"]
     # B Create using a real mongodb service
-    client  = AsyncIOMotorClient("mongodb://localhost:27018")
+    client  = AsyncIOMotorClient("mongodb://localhost:27018/?directConnection=true")
     # await client.drop_database("test_mictlan_db")
     db      = client["xolo_test_db"]
     for col_name in [CollectionNames.USERS_COLLECTION_NAME,
@@ -79,7 +79,7 @@ async def test_claim_and_check_ownership(acl_service: XoloACL):
 
 @pytest.mark.asyncio
 async def test_account_isolation_for_same_resource_id():
-    client = AsyncIOMotorClient("mongodb://localhost:27018")
+    client = AsyncIOMotorClient("mongodb://localhost:27018/?directConnection=true")
     db = client["xolo_test_db"]
     await db.drop_collection(CollectionNames.ACL_RESOURCE_POLICIES_COLLECTION_NAME)
     await db.drop_collection(CollectionNames.ACL_GROUPS_COLLECTION_NAME)

@@ -22,7 +22,7 @@ def _group(group_id: str, owner_id: str) -> SecurityGroup:
 
 
 @pytest.mark.asyncio
-async def test_delete_all_for_user_removes_owned_group_and_its_members(
+async def test_delete_all_for_user_blocks_when_user_owns_group(
     groups_repo: MongoSecurityGroupRepository,
 ):
     await groups_repo.save(_group("g-alice", USER_ID))
@@ -30,11 +30,12 @@ async def test_delete_all_for_user_removes_owned_group_and_its_members(
 
     result = await groups_repo.delete_all_for_user(ACCOUNT_ID, USER_ID)
 
-    assert result.is_ok
+    assert result.is_err
+    assert result.unwrap_err().metadata["group_ids"] == ["g-alice"]
     remaining = (await groups_repo.list_all(ACCOUNT_ID)).unwrap()
-    assert remaining == []
+    assert [group.group_id for group in remaining] == ["g-alice"]
     members = (await groups_repo.list_members(ACCOUNT_ID, "g-alice")).unwrap()
-    assert members == []
+    assert [member.user_id for member in members] == [OTHER_USER_ID]
 
 
 @pytest.mark.asyncio
@@ -74,7 +75,7 @@ async def test_delete_all_for_user_does_not_affect_other_users_groups(
 
 
 @pytest.mark.asyncio
-async def test_delete_all_for_user_handles_owned_and_member_groups_together(
+async def test_delete_all_for_user_does_not_remove_memberships_when_ownership_blocks(
     groups_repo: MongoSecurityGroupRepository,
 ):
     # alice owns g1, is a member in g2 (owned by bob)
@@ -85,16 +86,15 @@ async def test_delete_all_for_user_handles_owned_and_member_groups_together(
 
     result = await groups_repo.delete_all_for_user(ACCOUNT_ID, USER_ID)
 
-    assert result.is_ok
-    # g1 must be gone, g2 must survive
+    assert result.is_err
+    assert result.unwrap_err().metadata["group_ids"] == ["g1"]
+    # The operation is blocked before any memberships or groups are changed.
     remaining = (await groups_repo.list_all(ACCOUNT_ID)).unwrap()
-    assert [g.group_id for g in remaining] == ["g2"]
-    # g1's member (bob) must be gone since g1 is deleted
+    assert [g.group_id for g in remaining] == ["g1", "g2"]
     members_g1 = (await groups_repo.list_members(ACCOUNT_ID, "g1")).unwrap()
-    assert members_g1 == []
-    # alice is no longer member of g2
+    assert [member.user_id for member in members_g1] == [OTHER_USER_ID]
     is_member = (await groups_repo.is_member(ACCOUNT_ID, "g2", USER_ID)).unwrap()
-    assert is_member is False
+    assert is_member is True
 
 
 @pytest.mark.asyncio

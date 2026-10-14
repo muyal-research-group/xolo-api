@@ -36,6 +36,9 @@ class NGACRepository:
     async def create_node(self, node: NGACNode) -> Result[str, XoloException]:
         return await self._repo.create_node(node)
 
+    async def update_node(self, node: NGACNode) -> Result[bool, XoloException]:
+        return await self._repo.update_node(node)
+
     async def get_node(self, account_id: str, node_id: str) -> Result[NGACNode, XoloException]:
         result = await self._repo.find_node(account_id, node_id)
         if result.is_err:

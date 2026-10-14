@@ -1,0 +1,49 @@
+[project]
+site_name = "Xolo"
+site_description = "Python client, local policy engines, and development documentation for the Xolo access-control toolkit."
+site_author = "Muyal Research Group"
+site_url = "https://muyal-research-group.github.io/xolo-api/client/"
+repo_url = "https://github.com/muyal-research-group/xolo-api"
+copyright = """
+Copyright &copy; 2026 Muyal Research Group
+"""
+nav = [
+  { "Overview" = "index.md" },
+  { "Client guide" = "client.md" },
+  { "Error handling" = "error-handling.md" },
+  { "Entity operations" = "entity-operations.md" },
+  { "API reference" = "api-reference.md" },
+  { "Authentication" = "authentication.md" },
+  { "Service mode" = "service-mode.md" },
+  { "Development" = "development.md" },
+]
+
+[project.theme]
+language = "en"
+features = [
+    "announce.dismiss",
+    "content.code.copy",
+    "content.code.annotate",
+    "content.tabs.link",
+    "navigation.footer",
+    "navigation.indexes",
+    "navigation.instant",
+    "navigation.instant.prefetch",
+    "navigation.path",
+    "navigation.sections",
+    "navigation.top",
+    "navigation.tracking",
+    "search.highlight",
+]
+
+[[project.theme.palette]]
+accent = "blue"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+accent = "blue"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"

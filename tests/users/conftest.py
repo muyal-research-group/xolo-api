@@ -138,7 +138,7 @@ async def users_client(users_service):
     async with app_client(
         DB_NAME,
         COLLECTIONS,
-        api_key_scopes=[APIKeyScope.ALL],
+        api_key_scopes=[APIKeyScope.ALL, APIKeyScope.SERVICE],
         api_key_account_id=API_KEY_ACCOUNT_ID,
         admin_token="admin-token",
         account_ids=[API_KEY_ACCOUNT_ID, "acc-other"],

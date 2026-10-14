@@ -12,6 +12,8 @@ class SecurityGroup(BaseModel):
     name:        str
     owner_id:    str
     description: Optional[str] = None
+    normalized_name: str = ""
+    is_active: bool = True
     created_at:  datetime.datetime = Field(
         default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
@@ -29,6 +31,11 @@ class SecurityGroup(BaseModel):
 
     def is_owned_by(self, user_id: str) -> bool:
         return self.owner_id == user_id
+
+    @staticmethod
+    def normalize_name(name: str) -> tuple[str, str]:
+        display = " ".join(name.strip().split())
+        return display, display.casefold()
 
 
 class GroupMember(BaseModel):

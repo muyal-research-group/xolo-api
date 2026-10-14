@@ -43,6 +43,21 @@ async def test_create_duplicate_node_returns_err(ngac_repo: MongoNGACRepository)
 
 
 @pytest.mark.asyncio
+async def test_update_node_persists_name_and_properties(ngac_repo: MongoNGACRepository):
+    node = _node("n-edit", NodeType.USER_ATTRIBUTE)
+    await ngac_repo.create_node(node)
+    node.name = "Editors"
+    node.properties = {"department": "publishing"}
+
+    result = await ngac_repo.update_node(node)
+
+    assert result.is_ok
+    stored = (await ngac_repo.find_node(ACCOUNT_ID, "n-edit")).unwrap().unwrap()
+    assert stored.name == "Editors"
+    assert stored.properties == {"department": "publishing"}
+
+
+@pytest.mark.asyncio
 async def test_get_node_returns_correct_record(ngac_repo: MongoNGACRepository):
     await ngac_repo.create_node(_node("n-ua", NodeType.USER_ATTRIBUTE))
     result = await ngac_repo.find_node(ACCOUNT_ID, "n-ua")
@@ -186,7 +201,7 @@ async def test_create_association_returns_id(ngac_repo: MongoNGACRepository):
 
 
 @pytest.mark.asyncio
-async def test_create_association_upserts_on_duplicate(ngac_repo: MongoNGACRepository):
+async def test_create_association_rejects_duplicate_pair(ngac_repo: MongoNGACRepository):
     base = _association("n-ua", "n-oa", 0)
     await ngac_repo.create_association(base)
 
@@ -197,11 +212,12 @@ async def test_create_association_upserts_on_duplicate(ngac_repo: MongoNGACRepos
         object_attribute_id = "n-oa",
         operations          = ["read", "write"],
     )
-    await ngac_repo.create_association(updated)
+    duplicate = await ngac_repo.create_association(updated)
 
+    assert duplicate.is_err
     all_assocs = (await ngac_repo.list_associations(ACCOUNT_ID)).unwrap()
     assert len(all_assocs) == 1
-    assert set(all_assocs[0].operations) == {"read", "write"}
+    assert set(all_assocs[0].operations) == {"read"}
 
 
 @pytest.mark.asyncio

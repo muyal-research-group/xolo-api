@@ -1,4 +1,4 @@
-name: Docs
+name: Deploy documentation
 
 on:
   push:
@@ -14,6 +14,10 @@ on:
       - "zensical.toml"
       - "pyproject.toml"
       - "poetry.lock"
+      - "xolo-client/docs/**"
+      - "xolo-client/xolo/client/**"
+      - "xolo-client/zensical.toml"
+      - "xolo-client/pyproject.toml"
   workflow_dispatch:
 
 permissions:
@@ -42,13 +46,26 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Install Poetry
-        run: pip install poetry
+        run: pip install poetry==2.2.1
 
-      - name: Install docs dependencies
+      - name: Install API docs dependencies
         run: poetry install --with docs
 
-      - name: Build Zensical site
+      - name: Install client docs dependencies
+        working-directory: xolo-client
+        run: poetry install --no-interaction
+
+      - name: Build API documentation
         run: poetry run zensical build -f zensical.toml
+
+      - name: Build client documentation
+        working-directory: xolo-client
+        run: poetry run zensical build -f zensical.toml
+
+      - name: Combine documentation sites
+        run: |
+          mkdir -p site/client
+          cp -R xolo-client/site/. site/client/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -66,4 +83,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-

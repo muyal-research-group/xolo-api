@@ -38,6 +38,14 @@ class MongoRoleAssignmentRepository(IRoleAssignmentRepository):
 
     # ── IRoleAssignmentRepository ─────────────────────────────────────────────
 
+    async def find_by_id(self, account_id: str, assignment_id: str) -> Result[object, XoloException]:
+        try:
+            doc = await self._col.find_one({"_id": assignment_id, "account_id": account_id})
+            return Ok(Some(self._from_doc(doc)) if doc else NONE)
+        except Exception as e:
+            log.error(build_log_payload("rbac.role_assignment_repository.find_by_id.error", error=e, assignment_id=assignment_id))
+            return Err(DatabaseError(cause=e))
+
     async def find_all(self, account_id: str) -> Result[list[RoleAssignment], XoloException]:
         try:
             cursor = self._col.find({"account_id": account_id})
@@ -47,9 +55,12 @@ class MongoRoleAssignmentRepository(IRoleAssignmentRepository):
             log.error(build_log_payload("rbac.role_assignment_repository.find_all.error", error=e))
             return Err(DatabaseError(cause=e))
 
-    async def find_by_subject(self, account_id: str, subject_id: str) -> Result[list[RoleAssignment], XoloException]:
+    async def find_by_subject(self, account_id: str, subject_id: str, subject_type: str | None = None) -> Result[list[RoleAssignment], XoloException]:
         try:
-            cursor = self._col.find({"account_id": account_id, "subject_id": subject_id})
+            query = {"account_id": account_id, "subject_id": subject_id}
+            if subject_type:
+                query["subject_type"] = subject_type.upper()
+            cursor = self._col.find(query)
             docs   = await cursor.to_list(length=None)
             return Ok([self._from_doc(d) for d in docs])
         except Exception as e:
@@ -65,9 +76,12 @@ class MongoRoleAssignmentRepository(IRoleAssignmentRepository):
             log.error(build_log_payload("rbac.role_assignment_repository.find_by_role.error", error=e, role_id=role_id))
             return Err(DatabaseError(cause=e))
 
-    async def find_assignment(self, account_id: str, subject_id: str, role_id: str) -> Result[object, XoloException]:
+    async def find_assignment(self, account_id: str, subject_id: str, role_id: str, subject_type: str | None = None) -> Result[object, XoloException]:
         try:
-            doc = await self._col.find_one({"account_id": account_id, "subject_id": subject_id, "role_id": role_id})
+            query = {"account_id": account_id, "subject_id": subject_id, "role_id": role_id}
+            if subject_type:
+                query["subject_type"] = subject_type.upper()
+            doc = await self._col.find_one(query)
             return Ok(Some(self._from_doc(doc)) if doc else NONE)
         except Exception as e:
             log.error(build_log_payload("rbac.role_assignment_repository.find_assignment.error", error=e, subject_id=subject_id, role_id=role_id))

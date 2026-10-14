@@ -11,6 +11,8 @@ scripts/out
 log/*
 !xoloapi/log/*.py
 *.lock
+!poetry.lock
+!xolo-client/poetry.lock
 .env.prod
 .claude
 CLAUDE.md
@@ -20,3 +22,25 @@ site/
 .pytest_cache/
 ./log/*
 .*prod
+
+# Monorepo-local xolo-client development and generated artifacts
+/xolo-client/.github/
+/xolo-client/.claude/
+/xolo-client/.cache/
+/xolo-client/.pytest_cache/
+/xolo-client/.ruff_cache/
+/xolo-client/.coverage
+/xolo-client/.env*
+/xolo-client/tests/.env
+/xolo-client/dist/
+/xolo-client/site/
+/xolo-client/exports/
+!/xolo-client/tests/policies/
+!/xolo-client/tests/policies/*.json
+
+# Required Nuxt manifests are source files, despite the legacy JSON ignore.
+!/xolo-ui/package.json
+!/xolo-ui/tsconfig.json
+!/xolo-ui/pnpm-lock.yaml
+
+xolo*.md
