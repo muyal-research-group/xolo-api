@@ -7,7 +7,7 @@ Xolo supports a trusted service mode for control planes and other backend servic
 A service API key needs both scopes:
 
 - `service`: explicitly marks the key as trusted for service-to-service operations.
-- The feature scope, such as `acl` or `users`: limits what that service may use.
+- The feature scope, such as `acl`, `users`, or `groups`: limits what that service may use.
 
 The `all` scope does **not** include `service`. This prevents an existing broad API key from silently gaining trusted automation privileges after an upgrade.
 
@@ -18,7 +18,7 @@ Create separate keys per consuming service and environment, set an expiry when p
 Top-level account creation cannot use an account-owned key because that account does not exist yet. Automate this once with a super-admin token kept in a deployment secret store:
 
 1. `POST /api/v4/accounts` with `X-Admin-Token` creates the Xolo account.
-2. `POST /api/v4/accounts/{account_id}/apikeys` with the same token creates the control-plane key with `service`, `users`, and `acl` scopes.
+2. `POST /api/v4/accounts/{account_id}/apikeys` with the same token creates the control-plane key with `service`, `users`, `acl`, and `groups` scopes.
 3. Store the raw key in the control plane's secret store; Xolo will not show it again.
 4. Normal operation uses only that account-scoped key. Do not expose or continuously distribute the super-admin token.
 
@@ -46,7 +46,7 @@ Xolo combines a user's direct and group grants. No AXO-specific role rules are r
 
 ## Available service operations
 
-All routes are below `/api/v4/accounts/{account_id}/acl/service` and require `X-API-Key`.
+All routes are below `/api/v4/accounts/{account_id}/acl/service` and require `X-API-Key`. Group operations require a key with both `service` and `groups`; the ACL resource operations require both `service` and `acl`.
 
 | Operation | Route |
 |---|---|
@@ -59,6 +59,8 @@ All routes are below `/api/v4/accounts/{account_id}/acl/service` and require `X-
 | Create or delete groups | `POST /groups`, `DELETE /groups/{group_id}` |
 | Add, remove, or list members | `POST`, `DELETE`, or `GET /groups/{group_id}/members` |
 | Transfer group ownership | `POST /groups/{group_id}/owner` |
+
+Service group requests accept account user IDs or exact usernames and persist the resolved user IDs. They do not require a group owner's bearer session. Adding an existing member or removing a non-member succeeds without changing the group. Deleting a missing group returns `404`. Ownership transfer accepts `keep_previous_as_member` (default `true`); a repeated transfer to the current owner is a no-op. Normal `/accounts/{account_id}/groups` mutations still enforce owner or superadmin rules.
 
 Session introspection is `POST /api/v4/accounts/{account_id}/users/introspect`. It requires a key with both `service` and `users`, plus the user's bearer token and `Temporal-Secret-Key`. A revoked, replaced, disabled, expired, or account-mismatched session is rejected.
 
@@ -74,9 +76,10 @@ Authorization v2 is a coordinated breaking release. Deploy the API and
 any reported group-name collisions, and then run the migration without
 `--dry-run` before enabling the new UI.
 
-- Group lifecycle and membership routes moved from
-  `/accounts/{account_id}/acl/groups` and `/acl/service/groups` to
-  `/accounts/{account_id}/groups`. There are no compatibility aliases.
+- User-session group lifecycle and membership routes moved from
+  `/accounts/{account_id}/acl/groups` to `/accounts/{account_id}/groups`.
+  Trusted service group operations are available under `/acl/service/groups`
+  with the separate `service` and `groups` key scopes.
 - Group API keys require the new `groups` scope. Audit readers require the new
   `audit` scope. ACL and RBAC keys may read `/groups/references` only.
 - Groups are shared principals. Ownership does not imply membership, and a

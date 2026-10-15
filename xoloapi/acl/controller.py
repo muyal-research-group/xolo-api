@@ -753,13 +753,17 @@ async def service_delete_resource_policy(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post("/service/groups", status_code=status.HTTP_201_CREATED)
 async def service_create_group(
     account_id: str,
     dto: ServiceCreateGroupDTO,
-    api_key: APIKey = Depends(require_service_api_key("acl")),
+    api_key: APIKey = Depends(require_service_api_key("groups")),
     service: GroupService = Depends(get_group_service),
 ):
-    result = await service.create_group(account_id, dto.owner_id, dto.name, dto.description or "")
+    owner = await service.resolve_usernames(account_id, [dto.owner_id])
+    if owner.is_err:
+        raise owner.unwrap_err().to_http_exception()
+    result = await service.create_group(account_id, owner.unwrap()[0], dto.name, dto.description or "")
     if result.is_err:
         raise result.unwrap_err().to_http_exception()
     group_id = result.unwrap()
@@ -767,38 +771,47 @@ async def service_create_group(
     return {"group_id": group_id}
 
 
+@router.post("/service/groups/{group_id}/members", status_code=status.HTTP_204_NO_CONTENT)
 async def service_add_group_members(
     account_id: str,
     group_id: str,
     dto: MembersDTO,
-    api_key: APIKey = Depends(require_service_api_key("acl")),
+    api_key: APIKey = Depends(require_service_api_key("groups")),
     service: GroupService = Depends(get_group_service),
 ):
-    result = await service.add_members_admin(account_id, group_id, dto.members)
+    members = await service.resolve_usernames(account_id, dto.members + dto.usernames)
+    if members.is_err:
+        raise members.unwrap_err().to_http_exception()
+    result = await service.add_members_admin(account_id, group_id, list(dict.fromkeys(members.unwrap())))
     if result.is_err:
         raise result.unwrap_err().to_http_exception()
     log.info(build_log_payload("acl.service.group.members.add", key_id=api_key.key_id, group_id=group_id, members=dto.members))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.delete("/service/groups/{group_id}/members", status_code=status.HTTP_204_NO_CONTENT)
 async def service_remove_group_members(
     account_id: str,
     group_id: str,
     dto: MembersDTO,
-    api_key: APIKey = Depends(require_service_api_key("acl")),
+    api_key: APIKey = Depends(require_service_api_key("groups")),
     service: GroupService = Depends(get_group_service),
 ):
-    result = await service.remove_members_admin(account_id, group_id, dto.members)
+    members = await service.resolve_usernames(account_id, dto.members + dto.usernames)
+    if members.is_err:
+        raise members.unwrap_err().to_http_exception()
+    result = await service.remove_members_admin(account_id, group_id, list(dict.fromkeys(members.unwrap())))
     if result.is_err:
         raise result.unwrap_err().to_http_exception()
     log.info(build_log_payload("acl.service.group.members.remove", key_id=api_key.key_id, group_id=group_id, members=dto.members))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.get("/service/groups/{group_id}/members")
 async def service_list_group_members(
     account_id: str,
     group_id: str,
-    api_key: APIKey = Depends(require_service_api_key("acl")),
+    api_key: APIKey = Depends(require_service_api_key("groups")),
     service: GroupService = Depends(get_group_service),
 ):
     result = await service.list_members(account_id, group_id)
@@ -809,24 +822,29 @@ async def service_list_group_members(
     return [{"user_id": m.user_id, "joined_at": m.joined_at} for m in members]
 
 
+@router.post("/service/groups/{group_id}/owner", status_code=status.HTTP_204_NO_CONTENT)
 async def service_transfer_group_owner(
     account_id: str,
     group_id: str,
     dto: TransferGroupOwnerDTO,
-    api_key: APIKey = Depends(require_service_api_key("acl")),
+    api_key: APIKey = Depends(require_service_api_key("groups")),
     service: GroupService = Depends(get_group_service),
 ):
-    result = await service.transfer_owner_admin(account_id, group_id, dto.user_id, dto.keep_previous_as_member)
+    owner = await service.resolve_usernames(account_id, [dto.user_id])
+    if owner.is_err:
+        raise owner.unwrap_err().to_http_exception()
+    result = await service.transfer_owner_admin(account_id, group_id, owner.unwrap()[0], dto.keep_previous_as_member)
     if result.is_err:
         raise result.unwrap_err().to_http_exception()
     log.info(build_log_payload("acl.service.group.owner.transfer", key_id=api_key.key_id, group_id=group_id, principal_id=dto.user_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.delete("/service/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def service_delete_group(
     account_id: str,
     group_id: str,
-    api_key: APIKey = Depends(require_service_api_key("acl")),
+    api_key: APIKey = Depends(require_service_api_key("groups")),
     service: GroupService = Depends(get_group_service),
 ):
     result = await service.delete_group_admin(account_id, group_id)

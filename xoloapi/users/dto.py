@@ -23,6 +23,11 @@ class PasswordRecoveryConfirmDTO(BaseModel):
     password: str
 
 
+class ChangeOwnPasswordDTO(BaseModel):
+    password: str
+    username: str | None = None
+
+
 class DeleteUserDTO(BaseModel):
     username: str
 
@@ -49,6 +54,7 @@ __all__ = [
     "SignUpDTO",
     "PasswordRecoveryRequestDTO",
     "PasswordRecoveryConfirmDTO",
+    "ChangeOwnPasswordDTO",
     "UpdateUserPasswordDTO",
     "UpdateUserPasswordResponseDTO",
     "UserDTO",

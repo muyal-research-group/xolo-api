@@ -220,6 +220,20 @@ def test_update_user_password_requires_recovery_token():
     assert isinstance(error, E.ValidationError)
 
 
+def test_change_password_uses_current_user_session_without_api_key():
+    client = XoloClient(account_id="acct-1", api_key="api-key", api_url="http://localhost:10000/api/v4")
+
+    with patch("xolo.client.client.R.request", return_value=_response({"ok": True})) as request:
+        result = client.change_password("new-password", "bearer-1", "temp-1")
+
+    assert result.is_ok
+    kwargs = request.call_args.kwargs
+    assert kwargs["method"] == "POST"
+    assert kwargs["url"] == "http://localhost:10000/api/v4/accounts/acct-1/users/password"
+    assert kwargs["headers"] == {"Authorization": "Bearer bearer-1", "Temporal-Secret-Key": "temp-1"}
+    assert kwargs["json"] == {"password": "new-password"}
+
+
 def test_update_acl_grant_uses_stable_grant_endpoint_and_permissions_body():
     client = XoloClient(account_id="acct-1", api_key="api-key", api_url="http://localhost:10000/api/v4")
     payload = {
@@ -303,6 +317,55 @@ def test_service_acl_calls_need_only_the_service_key():
         "owner_id": "team:1:owners",
         "owner_type": "GROUP",
     }
+
+
+def test_service_group_methods_use_service_key_and_group_routes():
+    client = XoloClient(account_id="acct-1", api_key="service-key", api_url="http://localhost:10000/api/v4")
+    root = "http://localhost:10000/api/v4/accounts/acct-1/acl/service/groups"
+
+    with patch("xolo.client.client.R.request", return_value=_response({"group_id": "group-1"})) as request:
+        result = client.service_create_group("team:1", "owner")
+    assert result.is_ok and result.unwrap().group_id == "group-1"
+    assert request.call_args.kwargs == {
+        "method": "POST", "url": root, "headers": {"X-API-Key": "service-key"},
+        "json": {"name": "team:1", "owner_id": "owner", "description": ""}, "params": None,
+    }
+
+    for method_name, http_method in (("service_add_group_members", "POST"), ("service_remove_group_members", "DELETE")):
+        with patch("xolo.client.client.R.request", return_value=_response(status_code=204)) as request:
+            result = getattr(client, method_name)("group-1", ["member"])
+        assert result.is_ok
+        kwargs = request.call_args.kwargs
+        assert kwargs["method"] == http_method
+        assert kwargs["url"] == f"{root}/group-1/members"
+        assert kwargs["headers"] == {"X-API-Key": "service-key"}
+        assert kwargs["json"] == {"members": ["member"], "usernames": []}
+
+    with patch("xolo.client.client.R.request", return_value=_response([
+        {"user_id": "member-1", "joined_at": "2026-01-01T00:00:00Z"}
+    ])) as request:
+        listed = client.service_list_group_members("group-1")
+    assert listed.is_ok and listed.unwrap()[0].user_id == "member-1"
+    assert request.call_args.kwargs["url"] == f"{root}/group-1/members"
+
+    with patch("xolo.client.client.R.request", return_value=_response(status_code=204)) as request:
+        transferred = client.service_transfer_group_owner("group-1", "member")
+    assert transferred.is_ok
+    assert request.call_args.kwargs["url"] == f"{root}/group-1/owner"
+    assert request.call_args.kwargs["json"] == {"user_id": "member", "keep_previous_as_member": True}
+
+    with patch("xolo.client.client.R.request", return_value=_response(status_code=204)) as request:
+        transferred_without_membership = client.service_transfer_group_owner(
+            "group-1", "member", keep_previous_as_member=False
+        )
+    assert transferred_without_membership.is_ok
+    assert request.call_args.kwargs["json"] == {"user_id": "member", "keep_previous_as_member": False}
+
+    with patch("xolo.client.client.R.request", return_value=_response(status_code=204)) as request:
+        deleted = client.service_delete_group("group-1")
+    assert deleted.is_ok and deleted.unwrap().group_id == "group-1"
+    assert request.call_args.kwargs["url"] == f"{root}/group-1"
+    assert request.call_args.kwargs["method"] == "DELETE"
 
 
 def test_service_effective_access_parses_permissions_and_groups():

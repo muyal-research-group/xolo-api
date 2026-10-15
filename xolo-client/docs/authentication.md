@@ -78,6 +78,11 @@ Accepted `expiration` values follow a human-friendly format: `"15min"`, `"1h"`, 
 
 ## Notes about password recovery
 
+An authenticated tenant user can change their own password with
+`client.change_password(new_password, access_token, temporal_secret)`.
+The server revokes their current session after the change, so they must
+authenticate again with the new password.
+
 The live account API exposes a two-step password recovery flow:
 
 1. `request_password_recovery(identifier=...)`
