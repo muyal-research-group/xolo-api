@@ -241,19 +241,22 @@ async def auth(
 @router.post("/password")
 async def change_my_password(
     account_id: str,
-    password_dto: DTO.UpdateUserPasswordDTO,
+    password_dto: DTO.ChangeOwnPasswordDTO,
     current_user: Annotated[DTO.UserDTO, Depends(MX.get_current_user)],
     users_service: UsersService = Depends(get_users_service),
 ) -> DTO.UpdateUserPasswordResponseDTO:
     """Change the password for the currently authenticated tenant user."""
     t1 = T.time()
-    username = password_dto.username.strip()
-    if username != current_user.username:
+    username = current_user.username
+    if password_dto.username is not None and password_dto.username.strip() != username:
         raise EX.AccessDenied(
             raw_detail="You can only change the password for your own user account."
         ).to_http_exception()
 
-    response = await users_service.update_password(account_id=account_id, dto=password_dto)
+    response = await users_service.update_password(
+        account_id=account_id,
+        dto=DTO.UpdateUserPasswordDTO(username=username, password=password_dto.password),
+    )
     if response.is_ok:
         log.info(build_log_payload("users.password_change", started_at=t1, username=username))
         return response.unwrap()

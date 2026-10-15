@@ -631,6 +631,26 @@ class XoloClient(object):
         except Exception as e:
             return Err(E.XoloError.from_exception(e))
 
+    def change_password(
+        self,
+        password: str,
+        token: str,
+        temporal_secret: str,
+    ) -> Result[M.UpdateUserPasswordResponseDTO, E.XoloError]:
+        """Change the signed-in tenant user's password and revoke their session."""
+        try:
+            response = self._request(
+                "POST",
+                self._account_url("users/password"),
+                headers=self._bearer_headers(token, temporal_secret),
+                json={"password": password},
+            )
+            return Ok(M.UpdateUserPasswordResponseDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
     def update_user_password(
         self,
         username: str,
@@ -1642,6 +1662,129 @@ class XoloClient(object):
                 json=payload.model_dump(),
             )
             return Ok(M.ClaimedResourceResponseDTO(resource_id=resource_id))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def service_create_group(
+        self,
+        name: str,
+        owner_id: str,
+        description: str = "",
+        api_key: str = "",
+    ) -> Result[M.CreatedGroupResponseDTO, E.XoloError]:
+        """Create a group with a service key; owner_id accepts a user ID or username."""
+        try:
+            payload = M.ServiceCreateGroupDTO(name=name, owner_id=owner_id, description=description)
+            response = self._request(
+                "POST",
+                self._account_url("acl/service/groups"),
+                headers=self._api_key_headers(api_key, required=True),
+                json=payload.model_dump(),
+            )
+            return Ok(M.CreatedGroupResponseDTO.model_validate(self._response_json(response)))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def service_add_group_members(
+        self,
+        group_id: str,
+        members: List[str],
+        api_key: str = "",
+    ) -> Result[M.GroupMembersUpdateResponseDTO, E.XoloError]:
+        """Add tenant users by ID or username without borrowing an owner session."""
+        try:
+            self._request(
+                "POST",
+                self._account_url(f"acl/service/groups/{group_id}/members"),
+                headers=self._api_key_headers(api_key, required=True),
+                json=M.MembersDTO(members=members).model_dump(),
+            )
+            return Ok(M.GroupMembersUpdateResponseDTO(group_id=group_id, members=members))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def service_remove_group_members(
+        self,
+        group_id: str,
+        members: List[str],
+        api_key: str = "",
+    ) -> Result[M.GroupMembersUpdateResponseDTO, E.XoloError]:
+        """Remove tenant users by ID or username without borrowing an owner session."""
+        try:
+            self._request(
+                "DELETE",
+                self._account_url(f"acl/service/groups/{group_id}/members"),
+                headers=self._api_key_headers(api_key, required=True),
+                json=M.MembersDTO(members=members).model_dump(),
+            )
+            return Ok(M.GroupMembersUpdateResponseDTO(group_id=group_id, members=members))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def service_list_group_members(
+        self,
+        group_id: str,
+        api_key: str = "",
+    ) -> Result[List[M.GroupMemberDTO], E.XoloError]:
+        """List a group's members using a service key."""
+        try:
+            response = self._request(
+                "GET",
+                self._account_url(f"acl/service/groups/{group_id}/members"),
+                headers=self._api_key_headers(api_key, required=True),
+            )
+            return Ok([M.GroupMemberDTO.model_validate(item) for item in self._list_json(response)])
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def service_transfer_group_owner(
+        self,
+        group_id: str,
+        user_id: str,
+        api_key: str = "",
+        *,
+        keep_previous_as_member: bool = True,
+    ) -> Result[M.OperationResultDTO, E.XoloError]:
+        """Transfer group ownership to an account user by ID or username."""
+        try:
+            self._request(
+                "POST",
+                self._account_url(f"acl/service/groups/{group_id}/owner"),
+                headers=self._api_key_headers(api_key, required=True),
+                json=M.TransferGroupOwnerDTO(
+                    user_id=user_id,
+                    keep_previous_as_member=keep_previous_as_member,
+                ).model_dump(),
+            )
+            return Ok(M.OperationResultDTO(ok=True))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def service_delete_group(
+        self,
+        group_id: str,
+        api_key: str = "",
+    ) -> Result[M.DeletedGroupResponseDTO, E.XoloError]:
+        """Delete an unreferenced group using a service key."""
+        try:
+            self._request(
+                "DELETE",
+                self._account_url(f"acl/service/groups/{group_id}"),
+                headers=self._api_key_headers(api_key, required=True),
+            )
+            return Ok(M.DeletedGroupResponseDTO(group_id=group_id))
         except R.exceptions.HTTPError as http_err:
             return Err(self.__process_exception(http_err))
         except Exception as e:

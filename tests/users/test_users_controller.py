@@ -223,7 +223,7 @@ async def test_signed_in_user_can_change_own_password(users_client):
 
     changed = await users_client.post(
         f"/api/v4/accounts/{ACCOUNT_ID}/users/password",
-        json={"username": "alice", "password": "new-password"},
+        json={"password": "new-password"},
         headers=headers,
     )
     assert changed.status_code == 200

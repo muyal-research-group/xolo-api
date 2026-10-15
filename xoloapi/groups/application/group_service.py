@@ -332,16 +332,30 @@ class GroupService:
             return Err(NotFoundError("SecurityGroup", group_id))
 
         group = find.unwrap().unwrap()
-        # Ownership and membership are deliberately independent. The legacy
-        # keep_previous_as_member argument is ignored by the shared API.
         validated = await self.validate_user_ids(account_id, [new_owner_id])
         if validated.is_err:
             return Err(validated.unwrap_err())
+        if group.owner_id == new_owner_id:
+            return Ok(True)
+
+        previous_owner_was_member = False
+        if keep_previous_as_member:
+            membership = await self.repo.is_member(account_id, group_id, group.owner_id)
+            if membership.is_err:
+                return Err(membership.unwrap_err())
+            previous_owner_was_member = membership.unwrap()
+            if not previous_owner_was_member:
+                added = await self._add_members(account_id, group_id, [group.owner_id])
+                if added.is_err:
+                    return Err(added.unwrap_err())
+
         saved = await self.repo.save(group.model_copy(update={
             "owner_id": new_owner_id,
             "updated_at": datetime.datetime.now(datetime.timezone.utc),
         }))
         if saved.is_err:
+            if keep_previous_as_member and not previous_owner_was_member:
+                await self._remove_members(account_id, group_id, [group.owner_id])
             return Err(saved.unwrap_err())
         return Ok(True)
 
