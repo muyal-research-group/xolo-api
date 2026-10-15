@@ -37,7 +37,7 @@ A stable semantic version such as `api-v0.1.0` also updates `nachocode/xolo:api-
 2. Commit and push the change.
 3. Create and push a matching tag, for example `client-v0.1.0a5`.
 
-The workflow tests and builds the wheel and source distribution, then publishes package `xolo` to PyPI through Trusted Publishing. Configure a PyPI trusted publisher for this repository, workflow `release-client.yml`, and environment `pypi`. No long-lived PyPI token is stored in GitHub.
+The workflow tests and builds the wheel and source distribution, then publishes package `xolo` to TestPyPI through Trusted Publishing. Configure a TestPyPI trusted publisher for this repository, workflow `release-client.yml`, and environment `testpypi`. The publisher's repository owner and name must match the repository where the tag is pushed. No long-lived API token is stored in GitHub.
 
 ## UI image
 

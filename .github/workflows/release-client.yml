@@ -51,7 +51,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Publish client to PyPI
+    name: Publish client to TestPyPI
     needs: build
     runs-on: ubuntu-latest
     environment:
@@ -67,5 +67,7 @@ jobs:
           name: xolo-client-distributions
           path: dist/
 
-      - name: Publish through PyPI trusted publishing
+      - name: Publish through TestPyPI trusted publishing
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
