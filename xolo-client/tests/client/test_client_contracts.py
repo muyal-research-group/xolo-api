@@ -67,6 +67,24 @@ def test_create_scope_uses_admin_token_and_account_scoped_url():
     assert kwargs["json"] == {"name": "scope-1"}
 
 
+def test_api_key_scopes_and_permanent_delete_use_admin_routes():
+    client = XoloClient(account_id="acct-1", api_key="", api_url="http://localhost:10000/api/v4", admin_token="admin-1")
+
+    with patch("xolo.client.client.R.request", return_value=_response(["users", "groups", "audit", "service"])) as request:
+        scopes = client.list_api_key_scopes()
+    assert scopes.is_ok
+    assert scopes.unwrap() == [M.APIKeyScope.USERS, M.APIKeyScope.GROUPS, M.APIKeyScope.AUDIT, M.APIKeyScope.SERVICE]
+    assert request.call_args.kwargs["url"] == "http://localhost:10000/api/v4/accounts/acct-1/apikeys/scopes"
+    assert request.call_args.kwargs["headers"] == {"X-Admin-Token": "admin-1"}
+
+    with patch("xolo.client.client.R.request", return_value=_response(status_code=204)) as request:
+        deleted = client.delete_api_key("ak-1")
+    assert deleted.is_ok and deleted.unwrap().key_id == "ak-1"
+    assert request.call_args.kwargs["method"] == "DELETE"
+    assert request.call_args.kwargs["url"] == "http://localhost:10000/api/v4/accounts/acct-1/apikeys/ak-1/permanent"
+    assert request.call_args.kwargs["headers"] == {"X-Admin-Token": "admin-1"}
+
+
 def test_create_role_uses_bearer_temporal_secret_and_api_key():
     client = XoloClient(account_id="acct-1", api_key="api-key", api_url="http://localhost:10000/api/v4")
 

@@ -738,6 +738,10 @@ class RevokedAPIKeyResponseDTO(OperationResultDTO):
     key_id: str
 
 
+class DeletedAPIKeyResponseDTO(OperationResultDTO):
+    key_id: str
+
+
 class CreateRoleDTO(XoloDTO):
     name: str
     description: Optional[str] = None

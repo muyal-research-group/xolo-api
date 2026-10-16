@@ -1,5 +1,6 @@
 import pytest
 
+from xoloapi.apikeys.domain.value_objects import APIKeyScope
 from xoloapi.db.constants import CollectionNames
 from tests.support import app_client
 
@@ -10,6 +11,10 @@ COLLECTIONS = [CollectionNames.API_KEYS_COLLECTION_NAME]
 @pytest.mark.asyncio
 async def test_apikeys_controller_is_account_scoped():
     async with app_client(DB_NAME, COLLECTIONS, admin_token="admin-token", account_ids=["acc-a", "acc-b"]) as client:
+        scopes_res = await client.get("/api/v4/accounts/acc-a/apikeys/scopes")
+        assert scopes_res.status_code == 200
+        assert set(scopes_res.json()) == {scope.value for scope in APIKeyScope}
+
         create_res = await client.post(
             "/api/v4/accounts/acc-a/apikeys",
             json={"name": "ops-admin", "scopes": ["users", "licenses", "service"]},
@@ -36,6 +41,8 @@ async def test_apikeys_controller_is_account_scoped():
 
         other_delete_res = await client.request("DELETE", f"/api/v4/accounts/acc-b/apikeys/{key_id}")
         assert other_delete_res.status_code == 404
+        other_permanent_delete_res = await client.delete(f"/api/v4/accounts/acc-b/apikeys/{key_id}/permanent")
+        assert other_permanent_delete_res.status_code == 404
 
         delete_res = await client.request("DELETE", f"/api/v4/accounts/acc-a/apikeys/{key_id}")
         assert delete_res.status_code == 204
@@ -44,3 +51,8 @@ async def test_apikeys_controller_is_account_scoped():
         assert final_list_res.status_code == 200
         assert len(final_list_res.json()) == 1
         assert final_list_res.json()[0]["is_active"] is False
+
+        permanent_delete_res = await client.delete(f"/api/v4/accounts/acc-a/apikeys/{key_id}/permanent")
+        assert permanent_delete_res.status_code == 204
+        assert (await client.get("/api/v4/accounts/acc-a/apikeys")).json() == []
+        assert (await client.get(f"/api/v4/accounts/acc-a/apikeys/{key_id}")).status_code == 404
