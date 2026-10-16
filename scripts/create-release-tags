@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    printf 'Usage: %s VERSION [--push]\n' "${0##*/}"
+    printf 'Create api-vVERSION, client-vVERSION, and ui-vVERSION on HEAD.\n'
+    printf 'Pass --push to push all three tags to origin (and trigger release workflows).\n'
+}
+
+if [[ ${1:-} == --help || ${1:-} == -h ]]; then
+    usage
+    exit 0
+fi
+if (( $# < 1 || $# > 2 )) || { (( $# == 2 )) && [[ $2 != --push ]]; }; then
+    usage >&2
+    exit 2
+fi
+
+version=$1
+push_tags=false
+if [[ ${2:-} == --push ]]; then
+    push_tags=true
+fi
+
+if [[ ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+([ab][0-9]+|rc[0-9]+)?$ ]]; then
+    printf 'Invalid version: %s (expected e.g. 0.1.0 or 0.1.0a8).\n' "$version" >&2
+    exit 2
+fi
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+project_dir="$(cd "$script_dir/.." && pwd)"
+cd "$project_dir"
+
+if [[ $(git rev-parse --show-toplevel) != "$project_dir" ]]; then
+    printf 'Run this script from the Xolo repository checkout.\n' >&2
+    exit 1
+fi
+
+poetry_version() {
+    awk '
+        /^\[tool\.poetry\]$/ { in_poetry = 1; next }
+        /^\[/ { in_poetry = 0 }
+        in_poetry && /^version[[:space:]]*=/ { split($0, fields, "\""); print fields[2]; exit }
+    ' "$1"
+}
+
+api_version="$(poetry_version pyproject.toml)"
+client_version="$(poetry_version xolo-client/pyproject.toml)"
+ui_version="$(tr -d '\r\n' < xolo-ui/VERSION)"
+if [[ $version != "$api_version" || $version != "$client_version" || $version != "$ui_version" ]]; then
+    printf 'Version mismatch: requested=%s, API=%s, client=%s, UI=%s.\n' \
+        "$version" "$api_version" "$client_version" "$ui_version" >&2
+    printf 'Update and commit all three version files before tagging.\n' >&2
+    exit 1
+fi
+
+if [[ -n $(git status --porcelain) ]]; then
+    printf 'Working tree is not clean. Commit your release changes before tagging.\n' >&2
+    exit 1
+fi
+
+tags=("api-v$version" "client-v$version" "ui-v$version")
+refs=()
+for tag in "${tags[@]}"; do
+    ref="refs/tags/$tag"
+    git check-ref-format "$ref"
+    if git show-ref --verify --quiet "$ref"; then
+        printf 'Tag already exists locally: %s\n' "$tag" >&2
+        exit 1
+    fi
+    refs+=("$ref")
+done
+
+if $push_tags; then
+    git remote get-url origin > /dev/null
+    for tag in "${tags[@]}"; do
+        if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
+            printf 'Tag already exists on origin: %s\n' "$tag" >&2
+            exit 1
+        else
+            result=$?
+            if (( result != 2 )); then
+                printf 'Could not check tag %s on origin (git exit %s).\n' "$tag" "$result" >&2
+                exit 1
+            fi
+        fi
+    done
+fi
+
+for tag in "${tags[@]}"; do
+    git tag -a "$tag" -m "Release $tag"
+    printf 'Created %s on %s\n' "$tag" "$(git rev-parse --short HEAD)"
+done
+
+if $push_tags; then
+    git push --atomic origin "${refs[@]}"
+    printf 'Pushed all three tags to origin. GitHub release workflows will run.\n'
+else
+    printf 'Tags are local only. To publish them, run: git push --atomic origin'
+    printf ' %s' "${refs[@]}"
+    printf '\n'
+fi

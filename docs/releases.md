@@ -49,6 +49,8 @@ The workflow builds the Nuxt application and publishes `nachocode/xolo:ui-0.1.0a
 
 The tags are intentionally component-specific. An API-only change publishes only `api-v*`; a UI-only change publishes only `ui-v*`; and a client-only change publishes only `client-v*`. Use the same version value across all components when releasing a coordinated set.
 
+For a coordinated release of all three components, set the same version in the root and client `pyproject.toml` files and `xolo-ui/VERSION`, then commit those changes. Run `./scripts/create-release-tags 0.1.0a8` to create all three annotated tags locally, or add `--push` to push them to `origin` and trigger the release workflows. The script refuses mismatched versions, uncommitted changes, and existing tags. It does not change version files or push your branch.
+
 ## Documentation
 
 GitHub Pages deploys the API documentation at the site root and the client documentation below `/client/`. In the repository settings, select **GitHub Actions** as the Pages source. The workflow uses only GitHub's short-lived Pages token.
