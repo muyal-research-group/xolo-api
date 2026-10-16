@@ -11,6 +11,7 @@ from xoloapi.apikeys.dto import (
     RotatedAPIKeyResponseDTO,
 )
 from xoloapi.apikeys.infrastructure.mongo_repository import MongoAPIKeyRepository
+from xoloapi.apikeys.domain.value_objects import APIKeyScope
 from xoloapi.accounts.dependencies import require_existing_account
 from xoloapi.db.constants import CollectionNames
 from xoloapi.log.format import build_log_payload
@@ -98,6 +99,17 @@ async def list_api_keys(
 
 
 @router.get(
+    "/scopes",
+    response_model=list[APIKeyScope],
+    summary="List available API key scopes",
+)
+async def list_api_key_scopes(
+    _: object = Depends(require_admin_or_platform(PlatformPermission.API_KEYS_MANAGE)),
+):
+    return list(APIKeyScope)
+
+
+@router.get(
     "/{key_id}",
     response_model = APIKeyMetadataDTO,
     summary        = "Get API key metadata",
@@ -154,6 +166,32 @@ async def revoke_api_key(
         log.error(build_log_payload("apikeys.revoke.error", started_at=t1, error=err, key_id=key_id))
         raise err.to_http_exception()
     log.info(build_log_payload("apikeys.revoke", started_at=t1, key_id=key_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/{key_id}/permanent",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Permanently delete an API key record",
+    description="Immediately invalidates the key and removes its stored metadata. Requires API key management permission.",
+)
+async def delete_api_key(
+    account_id: str,
+    key_id: str,
+    _: object = Depends(require_admin_or_platform(PlatformPermission.API_KEYS_MANAGE)),
+    service: APIKeyService = Depends(get_apikey_service),
+):
+    result = await service.get(key_id)
+    if result.is_err:
+        raise result.unwrap_err().to_http_exception()
+    maybe = result.unwrap()
+    if maybe.is_none or maybe.unwrap().account_id != account_id:
+        from xoloapi.errors.base import NotFoundError
+        raise NotFoundError("APIKey", key_id).to_http_exception()
+    deleted = await service.delete(key_id)
+    if deleted.is_err:
+        raise deleted.unwrap_err().to_http_exception()
+    log.info(build_log_payload("apikeys.delete", key_id=key_id, account_id=account_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

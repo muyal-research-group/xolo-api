@@ -2249,6 +2249,34 @@ class XoloClient(object):
         except Exception as e:
             return Err(E.XoloError.from_exception(e))
 
+    def list_api_key_scopes(self, admin_token: str = "") -> Result[List[M.APIKeyScope], E.XoloError]:
+        """List every scope accepted when creating an account API key."""
+        try:
+            response = self._request(
+                "GET",
+                self._account_url("apikeys/scopes"),
+                headers=self._admin_headers(admin_token, required=True),
+            )
+            return Ok([M.APIKeyScope(scope) for scope in self._list_json(response)])
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
+    def delete_api_key(self, key_id: str, admin_token: str = "") -> Result[M.DeletedAPIKeyResponseDTO, E.XoloError]:
+        """Permanently remove a key and its metadata; unlike revoke, it disappears from listings."""
+        try:
+            self._request(
+                "DELETE",
+                self._account_url(f"apikeys/{key_id}/permanent"),
+                headers=self._admin_headers(admin_token, required=True),
+            )
+            return Ok(M.DeletedAPIKeyResponseDTO(key_id=key_id))
+        except R.exceptions.HTTPError as http_err:
+            return Err(self.__process_exception(http_err))
+        except Exception as e:
+            return Err(E.XoloError.from_exception(e))
+
     def revoke_api_key(self, key_id: str, admin_token: str = "") -> Result[M.RevokedAPIKeyResponseDTO, E.XoloError]:
         """Revoke an API key.
 

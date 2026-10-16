@@ -12,6 +12,8 @@ Account API keys are service credentials sent in `X-API-Key`. They carry scopes,
 
 Raw API keys are returned only at creation or rotation. The API and console show only safe metadata afterward.
 
+The console gets the complete supported scope list from `GET /api/v4/accounts/{account_id}/apikeys/scopes`. `DELETE /api/v4/accounts/{account_id}/apikeys/{key_id}` revokes a key but retains its metadata; `DELETE /api/v4/accounts/{account_id}/apikeys/{key_id}/permanent` invalidates the key and permanently removes its record. Both actions require API-key management permission and a confirmation in the console.
+
 ## Emergency admin tokens
 
 `XOLO_SUPER_ADMIN_TOKENS` configures restart-bound `X-Admin-Token` credentials for automation and recovery. These tokens are never returned to the browser console.

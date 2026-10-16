@@ -7,16 +7,16 @@ const sections = computed(() => [
   { value: 'acl', label: 'ACL', icon: 'mdi-format-list-checks', area: 'acl' },
   { value: 'abac', label: 'ABAC', icon: 'mdi-tune-variant', area: 'abac' },
   { value: 'ngac', label: 'NGAC', icon: 'mdi-graph-outline', area: 'ngac' },
-  { value: 'groups', label: 'Groups', icon: 'mdi-account-multiple-outline', area: 'groups' },
   { value: 'audit', label: 'Audit', icon: 'mdi-history', area: 'audit' }
 ].filter(item => can(item.area, 'read')))
 watch(() => props.accountId, () => { tab.value = sections.value[0]?.value || 'rbac' })
+watch(sections, items => { if (!items.some(item => item.value === tab.value)) tab.value = items[0]?.value || 'rbac' }, { immediate: true })
 </script>
 
 <template>
   <div :key="accountId">
     <div class="d-flex flex-wrap align-end justify-space-between ga-4 mb-6">
-      <div><div class="text-overline text-primary">Policy studio</div><h1 class="text-h4 xolo-title">Authorization</h1><p class="text-medium-emphasis mb-0">Policy models, shared principals, and immutable activity.</p></div>
+      <div><div class="text-overline text-primary">Policy studio</div><h1 class="text-h4 xolo-title">Authorization</h1><p class="text-medium-emphasis mb-0">Policy models and immutable activity.</p></div>
       <v-chip prepend-icon="mdi-domain" color="primary" variant="tonal">{{ accountId }}</v-chip>
     </div>
     <v-card class="xolo-card auth-shell">
@@ -27,7 +27,6 @@ watch(() => props.accountId, () => { tab.value = sections.value[0]?.value || 'rb
         <v-window-item value="acl"><AuthorizationAclWorkspace :account-id="accountId" :can-manage="can('acl','manage')" /></v-window-item>
         <v-window-item value="abac"><AuthorizationAbacWorkspace :account-id="accountId" :can-manage="can('abac','manage')" /></v-window-item>
         <v-window-item value="ngac"><AuthorizationNgacWorkspace :account-id="accountId" :can-manage="can('ngac','manage')" /></v-window-item>
-        <v-window-item value="groups"><AuthorizationGroupsWorkspace :account-id="accountId" :can-manage="can('groups','manage')" /></v-window-item>
         <v-window-item value="audit"><AuthorizationAuditWorkspace :account-id="accountId" /></v-window-item>
       </v-window>
     </v-card>

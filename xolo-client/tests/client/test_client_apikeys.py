@@ -60,3 +60,19 @@ def test_api_key_methods_return_expected_dtos(
     )
     assert revoked.ok is True
     assert revoked.key_id == created.key_id
+
+    scopes = unwrap_ok_list(
+        admin_client.list_api_key_scopes(admin_token=admin_client.admin_token),
+        M.APIKeyScope,
+    )
+    assert M.APIKeyScope.GROUPS in scopes
+    assert M.APIKeyScope.AUDIT in scopes
+
+    deleted = unwrap_ok(
+        admin_client.delete_api_key(
+            key_id=created.key_id,
+            admin_token=admin_client.admin_token,
+        ),
+        M.DeletedAPIKeyResponseDTO,
+    )
+    assert deleted.key_id == created.key_id

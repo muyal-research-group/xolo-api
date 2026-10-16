@@ -23,7 +23,8 @@ const nav = computed(() => [
   { value: 'overview', title: 'Overview', icon: 'mdi-view-dashboard-outline', show: true },
   { value: 'accounts', title: 'Accounts', icon: 'mdi-domain', show: can('accounts.read') },
   { value: 'tenant', title: 'Tenant workspace', icon: 'mdi-account-group-outline', show: !!selectedAccount.value && ['users','api_keys','scopes','licenses'].some(x => can(`${x}.read`)) },
-  { value: 'authorization', title: 'Authorization', icon: 'mdi-shield-key-outline', show: !!selectedAccount.value && ['acl','rbac','abac','ngac','groups','audit'].some(x => can(`${x}.read`)) },
+  { value: 'groups', title: 'Groups', icon: 'mdi-account-multiple-outline', show: !!selectedAccount.value && can('groups.read') },
+  { value: 'authorization', title: 'Authorization', icon: 'mdi-shield-key-outline', show: !!selectedAccount.value && ['acl','rbac','abac','ngac','audit'].some(x => can(`${x}.read`)) },
   { value: 'platform-users', title: 'Platform users', icon: 'mdi-account-cog-outline', show: can('platform_users.read') }
 ].filter(item => item.show))
 
@@ -68,7 +69,8 @@ function allowed(accountId: string) { return isAdmin.value || accountIds.value.i
 
 function openNotificationLink(event: Event) {
   const target = (event as CustomEvent<string>).detail || ''
-  if (/\/(acl|rbac|abac|ngac|groups)(\/|$)/.test(target)) view.value = 'authorization'
+  if (/\/groups(\/|$)/.test(target)) view.value = 'groups'
+  else if (/\/(acl|rbac|abac|ngac)(\/|$)/.test(target)) view.value = 'authorization'
 }
 onMounted(() => { restore(); window.addEventListener('xolo:notification-link', openNotificationLink) })
 onBeforeUnmount(() => window.removeEventListener('xolo:notification-link', openNotificationLink))
@@ -110,6 +112,10 @@ onBeforeUnmount(() => window.removeEventListener('xolo:notification-link', openN
           <div v-if="view === 'overview'"><h1 class="text-h4 xolo-title mb-1">Welcome, {{ current.username }}</h1><p class="text-medium-emphasis mb-7">A focused view of the Xolo platform.</p><v-row><v-col cols="12" md="4"><v-card class="xolo-card" title="Role"><v-card-text><div class="text-h5 text-capitalize">{{ current.role }}</div><div class="text-medium-emphasis">{{ isAdmin ? 'Full platform control' : `${permissions.length} permissions` }}</div></v-card-text></v-card></v-col><v-col cols="12" md="4"><v-card class="xolo-card" title="Accounts"><v-card-text><div class="text-h5">{{ isAdmin ? 'All' : accountIds.length }}</div><div class="text-medium-emphasis">{{ selectedAccount || 'Select an account' }}</div></v-card-text></v-card></v-col><v-col cols="12" md="4"><v-card class="xolo-card" title="Security"><v-card-text><div class="text-h5">Session protected</div><div class="text-medium-emphasis">HttpOnly cookie + CSRF token</div></v-card-text></v-card></v-col></v-row></div>
           <AccountsPanel v-else-if="view === 'accounts'" :selected="selectedAccount" :can-manage="can('accounts.manage')" @select="selectAccount" />
           <TenantResourcesPanel v-else-if="view === 'tenant' && selectedAccount && allowed(selectedAccount)" :account-id="selectedAccount" :permissions="permissions" :admin="isAdmin" />
+          <div v-else-if="view === 'groups' && selectedAccount && allowed(selectedAccount) && can('groups.read')">
+            <div class="d-flex flex-wrap align-end justify-space-between ga-4 mb-6"><div><h1 class="text-h4 xolo-title">Groups</h1><p class="text-medium-emphasis mb-0">Manage shared groups, members, and ownership.</p></div><v-chip prepend-icon="mdi-domain" color="primary" variant="tonal">{{ selectedAccount }}</v-chip></div>
+            <v-card class="xolo-card"><AuthorizationGroupsWorkspace :account-id="selectedAccount" :can-manage="can('groups.manage')" /></v-card>
+          </div>
           <AuthorizationPanel v-else-if="view === 'authorization' && selectedAccount && allowed(selectedAccount)" :account-id="selectedAccount" :permissions="permissions" :admin="isAdmin" />
           <PlatformUsersPanel v-else-if="view === 'platform-users'" :can-manage="can('platform_users.manage')" />
           <v-alert v-else type="info" variant="tonal">Select an allowed account first.</v-alert>
